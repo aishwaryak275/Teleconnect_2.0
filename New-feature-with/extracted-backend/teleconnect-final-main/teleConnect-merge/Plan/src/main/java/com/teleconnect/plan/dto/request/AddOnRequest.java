@@ -11,5 +11,6 @@ public class AddOnRequest {
     private BigDecimal quota;
     private Integer validityDays;
     private BigDecimal price;
+    private String status;
 }
 

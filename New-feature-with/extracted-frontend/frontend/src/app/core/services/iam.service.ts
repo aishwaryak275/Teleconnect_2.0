@@ -81,4 +81,17 @@ export class IamService {
       .pipe(catchError(() => of(null)))
       .subscribe();
   }
+
+  // ── Region management ────────────────────────────────────────────────────────
+  getRegions(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/regions`);
+  }
+
+  createRegion(name: string): Observable<any> {
+    return this.http.post<any>(`${this.base}/regions`, { name });
+  }
+
+  updateRegionStatus(regionId: number, status: string): Observable<any> {
+    return this.http.put<any>(`${this.base}/regions/${regionId}/status`, { status });
+  }
 }

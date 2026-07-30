@@ -201,7 +201,7 @@
           <div>
             <span class="px-3 py-1 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-wider mb-3 inline-block">Active Plan Subscription</span>
             <h3 class="text-3xl font-extrabold tracking-tight mb-2">{{ account360?.lines?.[0]?.activeSubscription?.plan?.name || 'Starter Plan' }}</h3>
-            <p class="text-indigo-200 text-sm font-light">Assigned Line: <strong class="text-white">+1-{{ account360?.lines?.[0]?.msisdn }}</strong> | Validity: {{ account360?.lines?.[0]?.activeSubscription?.plan?.validityDays }} Days</p>
+            <p class="text-indigo-200 text-sm font-light">Assigned Line: <strong class="text-white">+91-{{ account360?.lines?.[0]?.msisdn }}</strong> | Validity: {{ account360?.lines?.[0]?.activeSubscription?.plan?.validityDays }} Days</p>
           </div>
           <div class="text-left md:text-right shrink-0">
             <p class="text-4xl font-extrabold">₹{{ account360?.lines?.[0]?.activeSubscription?.plan?.planPrice }}<span class="text-xs text-indigo-300 font-light">/cycle</span></p>
@@ -453,15 +453,32 @@
       <!-- TAB: USAGE DASHBOARD                       -->
       <!-- ========================================== -->
       <div *ngIf="activeTab() === 'usage'" [@fadeInUp] class="flex flex-col gap-6">
-        <!-- Warning Banner for >80% usage -->
+        <!-- Dashboard header -->
+        <div>
+          <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Usage Dashboard</h2>
+          <p class="text-sm text-slate-500 font-light mt-1">
+            Line +91-{{ account360?.lines?.[0]?.msisdn }}
+            <span *ngIf="activeBillingCycleId"> · Billing Cycle #{{ activeBillingCycleId }}</span>
+          </p>
+        </div>
+
+        <!-- Empty state when no summary exists for the active cycle -->
+        <div *ngIf="!hasUsageData"
+             class="bg-white border border-slate-200 rounded-2xl p-10 shadow-sm text-center">
+          <p class="text-sm text-slate-500 font-light">No usage summary is available for this billing cycle yet.</p>
+          <p class="text-xs text-slate-400 font-light mt-1">Usage begins tracking once your plan is active and the current cycle has been generated.</p>
+        </div>
+
+        <ng-container *ngIf="hasUsageData">
+        <!-- Warning Banner for >=90% usage on any metric -->
         <div
-          *ngIf="getDataPercentage() >= 80"
-          class="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-800 rounded-2xl flex items-center gap-3 text-sm animate-pulse"
+          *ngIf="getDataPercentage() >= 90 || getVoicePercentage() >= 90 || getSmsPercentage() >= 90"
+          class="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-800 rounded-2xl flex items-center gap-3 text-sm"
         >
           <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <p class="font-medium">Data warning threshold crossed. You have consumed over 80% of your allocated monthly data.</p>
+          <p class="font-medium">Usage warning threshold crossed. One or more allowances have exceeded 90% for this cycle.</p>
         </div>
 
         <!-- 3 circular progress rings grid -->
@@ -470,18 +487,18 @@
           <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex items-center justify-between">
             <div>
               <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Data Usage</span>
-              <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ ((usageSummary?.dataUsedMb ?? 0) / 1024) | number:'1.1-1' }} GB</p>
-              <p class="text-xs text-slate-500 font-light mt-1">of {{ account360?.lines?.[0]?.activeSubscription?.plan?.dataGb }} GB plan</p>
+              <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ dataUsedGb | number:'1.1-1' }} <span class="text-base font-semibold text-slate-400">GB</span></p>
+              <p class="text-xs text-slate-500 font-light mt-1">{{ isDataUnlimited ? 'Unlimited data' : ('of ' + (dataLimitGb | number:'1.0-0') + ' GB limit') }}</p>
             </div>
             <div class="relative w-24 h-24 flex items-center justify-center">
               <svg class="w-full h-full transform -rotate-90">
                 <circle cx="48" cy="48" r="40" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
-                <circle cx="48" cy="48" r="40" stroke="#3B4FE0" stroke-width="8" fill="transparent"
+                <circle cx="48" cy="48" r="40" stroke="#3b82f6" stroke-width="8" fill="transparent"
                         [attr.stroke-dasharray]="251.2"
                         [attr.stroke-dashoffset]="getDashOffset(getDataPercentage())"
                         stroke-linecap="round"/>
               </svg>
-              <span class="absolute text-sm font-bold text-slate-800">{{ getDataPercentage() }}%</span>
+              <span class="absolute text-sm font-bold text-slate-800">{{ isDataUnlimited ? '∞' : getDataPercentage() + '%' }}</span>
             </div>
           </div>
 
@@ -489,8 +506,8 @@
           <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex items-center justify-between">
             <div>
               <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Voice Usage</span>
-              <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ usageSummary?.voiceUsedMin ?? 0 }} Min</p>
-              <p class="text-xs text-slate-500 font-light mt-1">of {{ account360?.lines?.[0]?.activeSubscription?.plan?.voiceMinutes }} Min plan</p>
+              <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ voiceUsedMin | number:'1.0-0' }} <span class="text-base font-semibold text-slate-400">Min</span></p>
+              <p class="text-xs text-slate-500 font-light mt-1">{{ isVoiceUnlimited ? 'Unlimited voice' : ('of ' + (voiceLimitMin | number:'1.0-0') + ' Min limit') }}</p>
             </div>
             <div class="relative w-24 h-24 flex items-center justify-center">
               <svg class="w-full h-full transform -rotate-90">
@@ -500,7 +517,7 @@
                         [attr.stroke-dashoffset]="getDashOffset(getVoicePercentage())"
                         stroke-linecap="round"/>
               </svg>
-              <span class="absolute text-sm font-bold text-slate-800">{{ getVoicePercentage() }}%</span>
+              <span class="absolute text-sm font-bold text-slate-800">{{ isVoiceUnlimited ? '∞' : getVoicePercentage() + '%' }}</span>
             </div>
           </div>
 
@@ -508,8 +525,8 @@
           <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex items-center justify-between">
             <div>
               <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">SMS Usage</span>
-              <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ usageSummary?.smsUsed ?? 0 }} SMS</p>
-              <p class="text-xs text-slate-500 font-light mt-1">of {{ account360?.lines?.[0]?.activeSubscription?.plan?.smsCount }} SMS plan</p>
+              <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ smsUsed | number:'1.0-0' }} <span class="text-base font-semibold text-slate-400">SMS</span></p>
+              <p class="text-xs text-slate-500 font-light mt-1">{{ isSmsUnlimited ? 'Unlimited SMS' : ('of ' + (smsLimit | number:'1.0-0') + ' SMS limit') }}</p>
             </div>
             <div class="relative w-24 h-24 flex items-center justify-center">
               <svg class="w-full h-full transform -rotate-90">
@@ -519,43 +536,93 @@
                         [attr.stroke-dashoffset]="getDashOffset(getSmsPercentage())"
                         stroke-linecap="round"/>
               </svg>
-              <span class="absolute text-sm font-bold text-slate-800">{{ getSmsPercentage() }}%</span>
+              <span class="absolute text-sm font-bold text-slate-800">{{ isSmsUnlimited ? '∞' : getSmsPercentage() + '%' }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Forecast / insights strip -->
+        <!-- Remaining allowance cards with meters -->
         <div class="grid md:grid-cols-3 gap-6">
           <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
             <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Data Remaining</span>
-            <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ dataRemainingGb | number:'1.1-1' }} GB</p>
-            <p class="text-xs text-slate-500 font-light mt-1">of {{ account360?.lines?.[0]?.activeSubscription?.plan?.dataGb }} GB entitlement</p>
+            <p class="text-2xl font-extrabold text-slate-800 mt-2"><ng-container *ngIf="!isDataUnlimited">{{ dataRemainingGb | number:'1.1-1' }} <span class="text-base font-semibold text-slate-400">GB</span></ng-container><span *ngIf="isDataUnlimited">Unlimited</span></p>
+            <div class="h-2 rounded-full bg-slate-100 overflow-hidden mt-3">
+              <div class="h-full rounded-full" style="background:#3b82f6" [style.width.%]="getDataRemainingPercentage()"></div>
+            </div>
+            <p class="text-xs text-slate-500 font-light mt-2">{{ isDataUnlimited ? 'Unlimited entitlement' : ('of ' + (dataLimitGb | number:'1.0-0') + ' GB entitlement') }}</p>
           </div>
           <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Avg Daily Data</span>
-            <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ avgDailyDataMb | number:'1.0-0' }} MB<span class="text-sm font-medium text-slate-400">/day</span></p>
-            <p class="text-xs text-slate-500 font-light mt-1">based on this cycle's usage</p>
+            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Voice Remaining</span>
+            <p class="text-2xl font-extrabold text-slate-800 mt-2"><ng-container *ngIf="!isVoiceUnlimited">{{ voiceRemainingMin | number:'1.0-0' }} <span class="text-base font-semibold text-slate-400">Min</span></ng-container><span *ngIf="isVoiceUnlimited">Unlimited</span></p>
+            <div class="h-2 rounded-full bg-slate-100 overflow-hidden mt-3">
+              <div class="h-full rounded-full" style="background:#10b981" [style.width.%]="getVoiceRemainingPercentage()"></div>
+            </div>
+            <p class="text-xs text-slate-500 font-light mt-2">{{ isVoiceUnlimited ? 'Unlimited entitlement' : ('of ' + (voiceLimitMin | number:'1.0-0') + ' Min entitlement') }}</p>
           </div>
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
-               [class.border-amber-300]="usageRunwayDays !== null && usageRunwayDays <= 5">
-            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Projected Runway</span>
-            <p class="text-2xl font-extrabold mt-2"
-               [class.text-slate-800]="usageRunwayDays === null || usageRunwayDays > 5"
-               [class.text-amber-600]="usageRunwayDays !== null && usageRunwayDays <= 5">
-              {{ usageRunwayDays !== null ? usageRunwayDays + ' days' : '—' }}
-            </p>
-            <p class="text-xs text-slate-500 font-light mt-1">until data is exhausted at current pace</p>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">SMS Remaining</span>
+            <p class="text-2xl font-extrabold text-slate-800 mt-2"><ng-container *ngIf="!isSmsUnlimited">{{ smsRemaining | number:'1.0-0' }} <span class="text-base font-semibold text-slate-400">SMS</span></ng-container><span *ngIf="isSmsUnlimited">Unlimited</span></p>
+            <div class="h-2 rounded-full bg-slate-100 overflow-hidden mt-3">
+              <div class="h-full rounded-full" style="background:#f59e0b" [style.width.%]="getSmsRemainingPercentage()"></div>
+            </div>
+            <p class="text-xs text-slate-500 font-light mt-2">{{ isSmsUnlimited ? 'Unlimited entitlement' : ('of ' + (smsLimit | number:'1.0-0') + ' SMS entitlement') }}</p>
           </div>
         </div>
 
-        <!-- Chart line panel -->
+        <!-- Limit Status Panel -->
         <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h3 class="text-base font-bold text-slate-800 tracking-tight mb-6">Daily Usage History (Data Consumption)</h3>
+          <h3 class="text-base font-bold text-slate-800 tracking-tight">Limit Status Panel</h3>
+          <p class="text-xs text-slate-400 font-light mt-1">Usage compared against stored plan limits (dataLimitMb / voiceLimitMin / smsLimit).</p>
+          <div class="grid gap-5 mt-5">
+            <!-- Data -->
+            <div>
+              <div class="flex justify-between text-sm font-semibold text-slate-700">
+                <span>Data · {{ dataUsedGb | number:'1.1-1' }} / {{ isDataUnlimited ? '∞' : (dataLimitGb | number:'1.0-0') }} GB</span>
+                <span *ngIf="isDataUnlimited" style="color:#3b82f6">Unlimited</span>
+                <span *ngIf="!isDataUnlimited" [class.text-red-600]="limitStatusCritical(getDataPercentage())"
+                      [style.color]="limitStatusCritical(getDataPercentage()) ? null : '#3b82f6'">{{ limitStatusLabel(getDataPercentage()) }}</span>
+              </div>
+              <div class="h-2 rounded-full bg-slate-100 overflow-hidden mt-2">
+                <div class="h-full rounded-full" style="background:#3b82f6" [style.width.%]="getDataPercentage()"></div>
+              </div>
+            </div>
+            <!-- Voice -->
+            <div>
+              <div class="flex justify-between text-sm font-semibold text-slate-700">
+                <span>Voice · {{ voiceUsedMin | number:'1.0-0' }} / {{ isVoiceUnlimited ? '∞' : (voiceLimitMin | number:'1.0-0') }} Min</span>
+                <span *ngIf="isVoiceUnlimited" style="color:#10b981">Unlimited</span>
+                <span *ngIf="!isVoiceUnlimited" [class.text-red-600]="limitStatusCritical(getVoicePercentage())"
+                      [style.color]="limitStatusCritical(getVoicePercentage()) ? null : '#10b981'">{{ limitStatusLabel(getVoicePercentage()) }}</span>
+              </div>
+              <div class="h-2 rounded-full bg-slate-100 overflow-hidden mt-2">
+                <div class="h-full rounded-full" style="background:#10b981" [style.width.%]="getVoicePercentage()"></div>
+              </div>
+            </div>
+            <!-- SMS -->
+            <div>
+              <div class="flex justify-between text-sm font-semibold text-slate-700">
+                <span>SMS · {{ smsUsed | number:'1.0-0' }} / {{ isSmsUnlimited ? '∞' : (smsLimit | number:'1.0-0') }} SMS</span>
+                <span *ngIf="isSmsUnlimited" style="color:#f59e0b">Unlimited</span>
+                <span *ngIf="!isSmsUnlimited" [class.text-red-600]="limitStatusCritical(getSmsPercentage())"
+                      [style.color]="limitStatusCritical(getSmsPercentage()) ? null : '#f59e0b'">{{ limitStatusLabel(getSmsPercentage()) }}</span>
+              </div>
+              <div class="h-2 rounded-full bg-slate-100 overflow-hidden mt-2">
+                <div class="h-full rounded-full" style="background:#f59e0b" [style.width.%]="getSmsPercentage()"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily usage history (bars) -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <h3 class="text-base font-bold text-slate-800 tracking-tight">Daily Usage History (Data Consumption)</h3>
+          <p class="text-xs text-slate-400 font-light mt-1 mb-5">GB consumed per day · current billing cycle</p>
           <div class="h-80 relative">
             <canvas id="usageChart"></canvas>
           </div>
-          <p *ngIf="!usageRecords?.length" class="text-center text-sm text-slate-400 font-light -mt-40 relative">No usage recorded yet for this billing cycle.</p>
+          <p *ngIf="!usageRecords?.length" class="text-center text-sm text-slate-400 font-light -mt-44 relative">No daily usage recorded yet for this billing cycle.</p>
         </div>
+        </ng-container>
       </div>
 
       <!-- ========================================== -->

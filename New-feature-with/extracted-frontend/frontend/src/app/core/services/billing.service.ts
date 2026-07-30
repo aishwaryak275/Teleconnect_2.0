@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -134,27 +134,30 @@ export class BillingService {
     return this.http.get<any>(`${this.base}/reports/outstanding`);
   }
 
-  // ── System Config (no backend equivalent — stubbed for UI compatibility) ─────
-
-  /**
-   * Stub — no billing system-config endpoint exists in the backend.
-   * Components call: getSystemConfig()
-   */
-  getSystemConfig(): Observable<any> {
-    return of({
-      lateFeePercentage: 2.5,
-      gracePeriodDays: 7,
-      autoPayEnabled: false,
-      taxRate: 18.0
-    });
+  /** Real collection metrics for a period (totalBilled/totalCollected/collectionEfficiency/...). */
+  getCollectionReport(fromDate: string, toDate: string, region?: string): Observable<any> {
+    const params: any = { fromDate, toDate };
+    if (region) params.region = region;
+    return this.http.get<any>(`${this.base}/reports/collection`, { params });
   }
 
-  /**
-   * Stub — no backend endpoint for system config updates.
-   * Components call: updateSystemConfig(config)
-   */
+  /** Real overdue invoices grouped by aging bucket. */
+  getOverdueReport(region?: string, agingBucket?: string): Observable<any> {
+    const params: any = {};
+    if (region) params.region = region;
+    if (agingBucket) params.agingBucket = agingBucket;
+    return this.http.get<any>(`${this.base}/reports/overdue`, { params });
+  }
+
+  // ── System Config ────────────────────────────────────────────────────────────
+  // Shared tariff/late-fee row — read by both the Admin Console's tariff screen
+  // and the Billing Dashboard's late-fee setting.
+
+  getSystemConfig(): Observable<any> {
+    return this.http.get<any>(`${this.base}/config`);
+  }
+
   updateSystemConfig(config: any): Observable<any> {
-    console.log('System config update (stub):', config);
-    return of({ message: 'Configuration saved (local only).' });
+    return this.http.put<any>(`${this.base}/config`, config);
   }
 }

@@ -7,6 +7,7 @@ import com.teleconnect.fault.dto.response.*;
 import com.teleconnect.fault.entity.FaultTicket;
 import com.teleconnect.fault.repository.FaultTicketRepository;
 import org.springframework.stereotype.Service;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,9 @@ public class FaultTicketService {
         dto.setResolvedDate(t.getResolvedDate());
         dto.setAssignedToId(t.getAssignedToId());
         dto.setStatus(t.getStatus().name());
+        dto.setDueDate(t.getDueDate());
+        boolean open = t.getStatus() == FaultTicket.TicketStatus.O || t.getStatus() == FaultTicket.TicketStatus.P;
+        dto.setSlaBreached(open && t.getDueDate() != null && LocalDate.now().isAfter(t.getDueDate()));
         return dto;
     }
 
@@ -64,8 +68,9 @@ public class FaultTicketService {
         ticket.setRaisedDate(req.getRaisedDate());
         ticket.setAssignedToId(req.getAssignedToId());
         ticket.setStatus(FaultTicket.TicketStatus.O);
+        ticket.setDueDate(req.getRaisedDate().plusDays(ticket.getPriority().slaDays()));
         ticketRepo.save(ticket);
-        log.info("Fault ticket created for accountId={} lineId={}", req.getAccountId(), req.getLineId());
+        log.info("Fault ticket created for accountId={} lineId={} dueDate={}", req.getAccountId(), req.getLineId(), ticket.getDueDate());
         return new MessageResponse("Fault ticket created successfully");
     }
 
@@ -153,5 +158,22 @@ public class FaultTicketService {
         ticketRepo.save(ticket);
         log.info("Fault ticket resolved ticketId={}", ticketId);
         return new MessageResponse("Fault ticket resolved successfully");
+    }
+
+    /**
+     * SLA escalation sweep: any ticket still Open/InProgress past its dueDate is
+     * flipped to Escalated. Returns the tickets that were just escalated (empty
+     * list on a quiet run) so the scheduler can log/audit only real transitions.
+     */
+    public List<FaultTicketResponse> escalateOverdueTickets() {
+        List<FaultTicket> overdue = ticketRepo.findByStatusInAndDueDateBefore(
+                List.of(FaultTicket.TicketStatus.O, FaultTicket.TicketStatus.P), LocalDate.now());
+        if (overdue.isEmpty()) return List.of();
+        for (FaultTicket t : overdue) {
+            t.setStatus(FaultTicket.TicketStatus.E);
+        }
+        ticketRepo.saveAll(overdue);
+        log.info("SLA escalation: {} ticket(s) moved to Escalated", overdue.size());
+        return overdue.stream().map(this::toDTO).collect(Collectors.toList());
     }
 }

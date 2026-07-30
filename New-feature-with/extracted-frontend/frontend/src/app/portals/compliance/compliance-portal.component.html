@@ -51,6 +51,20 @@
           <span class="font-medium text-sm transition-opacity duration-200" *ngIf="!isSidebarCollapsed()">KYC Dashboard</span>
         </button>
 
+        <!-- Data Usage Audit -->
+        <button
+          (click)="setTab('usage-audit')"
+          [class.bg-sky-100]="activeTab() === 'usage-audit'"
+          [class.text-sky-700]="activeTab() === 'usage-audit'"
+          [class.text-slate-500]="activeTab() !== 'usage-audit'"
+          class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl hover:bg-sky-50 hover:text-sky-700 transition duration-150 cursor-pointer focus:outline-none"
+        >
+          <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18M7 15l4-4 3 3 5-6" />
+          </svg>
+          <span class="font-medium text-sm transition-opacity duration-200" *ngIf="!isSidebarCollapsed()">Data Usage Audit</span>
+        </button>
+
         <!-- Plan Catalog -->
         <button
           (click)="setTab('catalog')"
@@ -259,6 +273,74 @@
             <app-paginator [total]="nonCompliantAccounts.length" [page]="kycPage" [size]="pageSize" (pageChange)="kycPage = $event"></app-paginator>
           </div>
         </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- TAB: DATA USAGE AUDIT                      -->
+      <!-- ========================================== -->
+      <div *ngIf="activeTab() === 'usage-audit'" [@fadeInUp] class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+          <div>
+            <h3 class="text-base font-bold text-slate-800 tracking-tight">Data Usage Audit</h3>
+            <p class="text-xs text-slate-400 font-light mt-0.5">Consumption against plan entitlement, per SIM line — flags lines at or above the 80% usage threshold.</p>
+          </div>
+          <button (click)="loadUsageAudit()" class="text-xs font-semibold text-primary-600 hover:text-primary-800 px-3 py-1.5 rounded-lg bg-primary-50 hover:bg-primary-100 transition cursor-pointer">
+            Refresh
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50 border-b border-slate-100">
+                <th class="px-6 py-3">Line (MSISDN)</th>
+                <th class="px-6 py-3">Account</th>
+                <th class="px-6 py-3">Plan</th>
+                <th class="px-6 py-3">Data</th>
+                <th class="px-6 py-3">Voice</th>
+                <th class="px-6 py-3">SMS</th>
+                <th class="px-6 py-3 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr *ngFor="let row of usageAuditRows | paginate: usageAuditPage : pageSize" class="hover:bg-slate-50/20">
+                <td class="px-6 py-3 font-semibold text-slate-700">+1-{{ row.msisdn }}</td>
+                <td class="px-6 py-3 text-slate-600">
+                  #{{ row.accountId }}
+                  <p class="text-[10px] text-slate-400 font-light mt-0.5">Subscriber #{{ row.subscriberId }}</p>
+                </td>
+                <td class="px-6 py-3 text-slate-600">{{ row.planName }}</td>
+                <td class="px-6 py-3 text-slate-600">
+                  {{ row.dataUsedMb | number:'1.0-0' }} / {{ row.dataLimitMb > 0 ? (row.dataLimitMb | number:'1.0-0') : '∞' }} MB
+                  <p class="text-[10px] font-semibold mt-0.5" [class.text-rose-600]="row.dataPct >= 90" [class.text-amber-600]="row.dataPct >= 80 && row.dataPct < 90" [class.text-slate-400]="row.dataPct < 80">{{ row.dataLimitMb > 0 ? row.dataPct + '%' : 'Unlimited' }}</p>
+                </td>
+                <td class="px-6 py-3 text-slate-600">
+                  {{ row.voiceUsedMin | number:'1.0-0' }} / {{ row.voiceLimitMin > 0 ? row.voiceLimitMin : '∞' }} min
+                  <p class="text-[10px] font-semibold mt-0.5" [class.text-rose-600]="row.voicePct >= 90" [class.text-amber-600]="row.voicePct >= 80 && row.voicePct < 90" [class.text-slate-400]="row.voicePct < 80">{{ row.voiceLimitMin > 0 ? row.voicePct + '%' : 'Unlimited' }}</p>
+                </td>
+                <td class="px-6 py-3 text-slate-600">
+                  {{ row.smsUsed | number:'1.0-0' }} / {{ row.smsLimit > 0 ? row.smsLimit : '∞' }}
+                  <p class="text-[10px] font-semibold mt-0.5" [class.text-rose-600]="row.smsPct >= 90" [class.text-amber-600]="row.smsPct >= 80 && row.smsPct < 90" [class.text-slate-400]="row.smsPct < 80">{{ row.smsLimit > 0 ? row.smsPct + '%' : 'Unlimited' }}</p>
+                </td>
+                <td class="px-6 py-3 text-right">
+                  <span
+                    [class.bg-rose-100]="row.status === 'Critical'" [class.text-rose-700]="row.status === 'Critical'"
+                    [class.bg-amber-100]="row.status === 'Warning'" [class.text-amber-700]="row.status === 'Warning'"
+                    [class.bg-emerald-100]="row.status === 'Normal'" [class.text-emerald-700]="row.status === 'Normal'"
+                    class="px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                  >{{ row.status }}</span>
+                </td>
+              </tr>
+              <tr *ngIf="!isUsageAuditLoading && usageAuditRows.length === 0">
+                <td colspan="7" class="px-6 py-8 text-center text-slate-400 font-light">No usage data available for audit yet.</td>
+              </tr>
+              <tr *ngIf="isUsageAuditLoading">
+                <td colspan="7" class="px-6 py-8 text-center text-slate-400 font-light">Loading usage audit…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <app-paginator [total]="usageAuditRows.length" [page]="usageAuditPage" [size]="pageSize" (pageChange)="usageAuditPage = $event"></app-paginator>
       </div>
 
       <!-- TAB: PLAN CATALOG (read-only) -->

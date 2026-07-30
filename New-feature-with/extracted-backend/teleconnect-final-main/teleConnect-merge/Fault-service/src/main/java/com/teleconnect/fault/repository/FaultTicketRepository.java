@@ -2,6 +2,7 @@ package com.teleconnect.fault.repository;
 
 import com.teleconnect.fault.entity.FaultTicket;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface FaultTicketRepository extends JpaRepository<FaultTicket, Integer> {
@@ -15,4 +16,6 @@ public interface FaultTicketRepository extends JpaRepository<FaultTicket, Intege
     List<FaultTicket> findByAccountId(Integer accountId);
 
     List<FaultTicket> findByAssignedToId(Integer assignedToId);
+
+    List<FaultTicket> findByStatusInAndDueDateBefore(List<FaultTicket.TicketStatus> statuses, LocalDate date);
 }

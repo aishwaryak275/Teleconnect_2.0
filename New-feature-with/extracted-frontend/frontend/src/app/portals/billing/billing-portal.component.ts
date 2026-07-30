@@ -113,10 +113,8 @@ export class BillingPortalComponent implements OnInit {
   logDisputeForm!: FormGroup;
 
   // ── Reports ───────────────────────────────────────────────────────────────
-  topOverdue = [
-    { accountId: 'ACC-10087', customer: 'Tata Consultancy Services', invoice: 'INV-2024-08842', amount: 31498, daysOverdue: 7, plan: 'Jio Enterprise Unlimited' },
-    { accountId: 'ACC-10309', customer: 'HDFC Bank Ltd', invoice: 'INV-2024-08846', amount: 42998, daysOverdue: 7, plan: 'JioFiber Enterprise 1 Gbps' }
-  ];
+  collectionReport: any = null;
+  overdueReport: any = null;
   openReportKebabId: string | null = null;
   private billingChart: Chart | null = null;
   private disputeTrendChart: Chart | null = null;
@@ -220,10 +218,22 @@ export class BillingPortalComponent implements OnInit {
       paymentDueWindow: ['30 days'],
       defaultCurrency: ['INR'],
       taxRate: [9.5],
+      lateFeePercentage: [2.0],
       emailOnOverdue: [true],
       smsHighValue: [false],
       autoReminders: [true],
       dunningProcess: [true]
+    });
+
+    // The late-fee field is the one settingsForm control backed by a real,
+    // persisted config (shared with the Admin Console's tariff screen).
+    this.billingService.getSystemConfig().subscribe({
+      next: (config) => {
+        if (config?.lateFeePercentage != null) {
+          this.settingsForm.patchValue({ lateFeePercentage: Number(config.lateFeePercentage) });
+        }
+      },
+      error: () => { /* keep the form default */ }
     });
   }
 
@@ -240,6 +250,17 @@ export class BillingPortalComponent implements OnInit {
     this.billingService.getDisputes().subscribe({
       next: (data) => { if (Array.isArray(data) && data.length) this.disputes = this.mapDisputes(data); },
       error: () => { /* keep seed data */ }
+    });
+
+    const toDate = new Date().toISOString().slice(0, 10);
+    const fromDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    this.billingService.getCollectionReport(fromDate, toDate).subscribe({
+      next: (data) => this.collectionReport = data,
+      error: () => { /* reportKpis falls back to computing from this.invoices */ }
+    });
+    this.billingService.getOverdueReport().subscribe({
+      next: (data) => this.overdueReport = data,
+      error: () => { /* topOverdue falls back to filtering this.invoices */ }
     });
   }
 
@@ -794,16 +815,61 @@ export class BillingPortalComponent implements OnInit {
   // REPORTS
   // ============================================================================
   get reportKpis() {
+    const invoiceCount = this.invoices.length || 1;
+    const disputeRate = Math.round((this.disputes.length / invoiceCount) * 1000) / 10;
+
+    if (this.collectionReport) {
+      const r = this.collectionReport;
+      const totalBilled = Number(r.totalBilled ?? 0);
+      const outstanding = Number(r.totalOutstanding ?? 0);
+      return {
+        totalBilled,
+        collected: Number(r.totalCollected ?? 0),
+        collectionRate: Math.round((r.collectionEfficiency ?? 0) * 10) / 10,
+        outstanding,
+        pendingPct: totalBilled > 0 ? Math.round((outstanding / totalBilled) * 1000) / 10 : 0,
+        disputeRate,
+        avgInvoice: invoiceCount > 0 ? Math.round(totalBilled / invoiceCount) : 0
+      };
+    }
+
+    // Backend report unavailable yet — compute the same shape from already-loaded invoices.
+    const totalBilled = this.invoices.reduce((s, i) => s + i.amount, 0);
+    const collected = this.invoices.filter(i => i.status === 'Paid').reduce((s, i) => s + i.amount, 0);
+    const outstanding = totalBilled - collected;
     return {
-      totalBilled: 289000,
-      collected: 256000,
-      collectionRate: 88.6,
-      outstanding: 33000,
-      pendingPct: 11.4,
-      disputeRate: 6.0,
-      disputeRateDelta: 1.2,
-      avgInvoice: 28900
+      totalBilled,
+      collected,
+      collectionRate: totalBilled > 0 ? Math.round((collected / totalBilled) * 1000) / 10 : 0,
+      outstanding,
+      pendingPct: totalBilled > 0 ? Math.round((outstanding / totalBilled) * 1000) / 10 : 0,
+      disputeRate,
+      avgInvoice: invoiceCount > 0 ? Math.round(totalBilled / invoiceCount) : 0
     };
+  }
+
+  get topOverdue() {
+    if (this.overdueReport?.content?.length) {
+      return this.overdueReport.content.map((r: any) => ({
+        accountId: r.accountId != null ? `ACC-${r.accountId}` : '—',
+        customer: 'Account #' + (r.accountId ?? '—'),
+        invoice: r.invoiceId != null ? `INV-${r.invoiceId}` : '—',
+        amount: Number(r.totalAmount ?? 0),
+        daysOverdue: r.daysOverdue ?? 0,
+        plan: '—'
+      }));
+    }
+    // Fallback: derive from already-loaded invoices until the report call resolves.
+    return this.invoices
+      .filter(i => i.status === 'Overdue')
+      .map(i => ({
+        accountId: i.accountId,
+        customer: i.customer,
+        invoice: i.invoiceId,
+        amount: i.amount,
+        daysOverdue: Math.max(0, Math.round((Date.now() - new Date(i.dueDate).getTime()) / 86400000)),
+        plan: '—'
+      }));
   }
 
   get invoiceStatusBreakdown() {
@@ -883,7 +949,13 @@ export class BillingPortalComponent implements OnInit {
   }
 
   saveSettings(): void {
-    this.iamService.recordAudit('BILLING_SETTINGS_UPDATED', 'BILLING');
-    this.toastService.success('Billing settings saved.');
+    const lateFeePercentage = this.settingsForm.value.lateFeePercentage;
+    this.billingService.updateSystemConfig({ lateFeePercentage }).subscribe({
+      next: () => {
+        this.iamService.recordAudit('BILLING_SETTINGS_UPDATED', 'BILLING');
+        this.toastService.success('Billing settings saved.');
+      },
+      error: () => this.toastService.error('Failed to save the late fee rate. Other settings are not yet backend-persisted.')
+    });
   }
 }

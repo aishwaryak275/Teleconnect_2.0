@@ -3,6 +3,8 @@ package com.teleconnect.plan.controller;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PostConstruct;
 
+import com.teleconnect.plan.dto.request.AddOnAttachRequest;
+import com.teleconnect.plan.dto.request.PlanChangeRequest;
 import com.teleconnect.plan.dto.request.ServiceSubscriptionRequest;
 import com.teleconnect.plan.dto.response.ServiceSubscriptionResponse;
 import com.teleconnect.plan.dto.response.MessageResponse;
@@ -107,5 +109,41 @@ public class ServiceSubscriptionController {
         log.info("Subscription updated subscriptionId={}", subscriptionId);
         return ResponseEntity.ok(
             new MessageResponse("Subscription updated successfully"));
+    }
+
+    @PutMapping("/subscriptions/{subscriptionId}/change-plan")
+    @PreAuthorize("hasAnyAuthority('CREATE_SUB', 'PAY_BILL', 'VIEW_OWN_PLAN')")
+    public ResponseEntity<?> changePlan(
+            @PathVariable Integer subscriptionId,
+            @RequestBody PlanChangeRequest req,
+            HttpServletRequest httpReq) {
+        log.info("Change plan request subscriptionId={} newPlanId={}", subscriptionId, req.getNewPlanId());
+        String error = service.changePlan(subscriptionId, req);
+        if (error != null) {
+            log.warn("Change plan failed subscriptionId={}: {}", subscriptionId, error);
+            return ResponseEntity.status(error.contains("not found") ? 404 : 400)
+                .body(new MessageResponse(error));
+        }
+        auditClient.record(AuditAction.CHANGE_SUBSCRIPTION_PLAN, AuditModule.PLAN, httpReq);
+        log.info("Plan changed subscriptionId={} newPlanId={}", subscriptionId, req.getNewPlanId());
+        return ResponseEntity.ok(new MessageResponse("Plan changed successfully"));
+    }
+
+    @PutMapping("/subscriptions/{subscriptionId}/attach-addon")
+    @PreAuthorize("hasAnyAuthority('CREATE_SUB', 'PAY_BILL', 'VIEW_OWN_PLAN')")
+    public ResponseEntity<?> attachAddOn(
+            @PathVariable Integer subscriptionId,
+            @RequestBody AddOnAttachRequest req,
+            HttpServletRequest httpReq) {
+        log.info("Attach add-on request subscriptionId={} addOnId={}", subscriptionId, req.getAddOnId());
+        String error = service.attachAddOn(subscriptionId, req);
+        if (error != null) {
+            log.warn("Attach add-on failed subscriptionId={}: {}", subscriptionId, error);
+            return ResponseEntity.status(error.contains("not found") ? 404 : 400)
+                .body(new MessageResponse(error));
+        }
+        auditClient.record(AuditAction.ATTACH_ADDON, AuditModule.PLAN, httpReq);
+        log.info("Add-on attached subscriptionId={} addOnId={}", subscriptionId, req.getAddOnId());
+        return ResponseEntity.ok(new MessageResponse("Add-on attached successfully"));
     }
 }

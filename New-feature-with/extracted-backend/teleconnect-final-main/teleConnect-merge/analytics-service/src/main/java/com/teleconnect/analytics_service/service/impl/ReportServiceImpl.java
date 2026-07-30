@@ -2,6 +2,8 @@ package com.teleconnect.analytics_service.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.teleconnect.analytics_service.client.PlanStatsClient;
+import com.teleconnect.analytics_service.dto.external.SubscriptionDto;
 import com.teleconnect.analytics_service.dto.request.ReportGenerationRequest;
 import com.teleconnect.analytics_service.dto.response.*;
 import com.teleconnect.analytics_service.entity.TelecomReport;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -31,6 +34,7 @@ public class ReportServiceImpl implements ReportService {
     private final SLAComplianceService slaComplianceService;
     private final CollectionEfficiencyService collectionEfficiencyService;
     private final SubscriberGrowthService subscriberGrowthService;
+    private final PlanStatsClient planStatsClient;
     private final ObjectMapper objectMapper;
 
     public ReportServiceImpl(TelecomReportRepository telecomReportRepository,
@@ -40,6 +44,7 @@ public class ReportServiceImpl implements ReportService {
                              SLAComplianceService slaComplianceService,
                              CollectionEfficiencyService collectionEfficiencyService,
                              SubscriberGrowthService subscriberGrowthService,
+                             PlanStatsClient planStatsClient,
                              ObjectMapper objectMapper) {
         this.telecomReportRepository = telecomReportRepository;
         this.arpuService = arpuService;
@@ -48,6 +53,7 @@ public class ReportServiceImpl implements ReportService {
         this.slaComplianceService = slaComplianceService;
         this.collectionEfficiencyService = collectionEfficiencyService;
         this.subscriberGrowthService = subscriberGrowthService;
+        this.planStatsClient = planStatsClient;
         this.objectMapper = objectMapper;
     }
 
@@ -81,6 +87,35 @@ public class ReportServiceImpl implements ReportService {
                 growth.getGrossAdds(), growth.getNetAdds());
         metricsMap.put("ActiveSubscribers", growth.getGrossAdds());
         metricsMap.put("NetAdds", growth.getNetAdds());
+
+        // ARPU and DataConsumption both need a specific billing cycle to compute
+        // against — only available when the caller supplies one.
+        if (request.getCycleId() != null) {
+            ARPUReportResponse arpu = arpuService.computeARPU(
+                    request.getCycleId(), request.getScope().name(), request.getScopeValue());
+            log.debug("ARPU computed for report: overall={} activeSubscribers={}",
+                    arpu.getArpuOverall(), arpu.getActiveSubscribers());
+            metricsMap.put("ARPU", arpu.getArpuOverall());
+
+            String regionFilter = request.getScope() == ReportScope.REGION ? request.getScopeValue() : null;
+            NetworkUtilisationResponse utilisation = networkUtilisationService.computeUtilisation(
+                    request.getCycleId(), regionFilter);
+            log.debug("Network utilisation computed for report: totalDataUsedMb={}", utilisation.getTotalDataUsedMb());
+            metricsMap.put("DataConsumption", utilisation.getTotalDataUsedMb());
+        } else {
+            log.debug("No cycleId supplied — skipping ARPU/DataConsumption for this report");
+        }
+
+        // Plan-scoped aggregation: subscriber count on the requested plan.
+        if (request.getScope() == ReportScope.PLAN) {
+            Integer planId = parsePlanId(request.getScopeValue());
+            List<SubscriptionDto> subs = planStatsClient.getSubscriptionsByPlan(planId);
+            long activeOnPlan = subs.stream().filter(s -> "A".equals(s.getStatus())).count();
+            log.debug("Plan-scoped subscriber count computed for report: planId={} activeOnPlan={} total={}",
+                    planId, activeOnPlan, subs.size());
+            metricsMap.put("PlanActiveSubscribers", activeOnPlan);
+            metricsMap.put("PlanTotalSubscriptions", (long) subs.size());
+        }
 
         String metricsJson;
         try {
@@ -121,5 +156,14 @@ public class ReportServiceImpl implements ReportService {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("generatedDate").descending());
         return telecomReportRepository.findByFilters(scope, from, to, pageable)
                 .map(TelecomReportResponse::from);
+    }
+
+    private Integer parsePlanId(String scopeValue) {
+        try {
+            return scopeValue == null ? null : Integer.parseInt(scopeValue.trim());
+        } catch (NumberFormatException e) {
+            log.warn("scope=PLAN but scopeValue='{}' is not a numeric planId — aggregating across all plans", scopeValue);
+            return null;
+        }
     }
 }

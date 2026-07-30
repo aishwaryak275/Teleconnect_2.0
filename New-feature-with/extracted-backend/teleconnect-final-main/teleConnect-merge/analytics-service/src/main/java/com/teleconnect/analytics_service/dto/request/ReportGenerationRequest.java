@@ -21,6 +21,11 @@ public class ReportGenerationRequest {
 
     private Long generatedBy;
 
+    // Optional — when supplied, generateReport() also computes ARPU and
+    // DataConsumption (both require a specific billing cycle). Omit to get a
+    // report with just Churn/SLA/SubscriberGrowth metrics, as before.
+    private Long cycleId;
+
     public ReportGenerationRequest() {}
 
     public ReportScope getScope() { return scope; }
@@ -37,4 +42,7 @@ public class ReportGenerationRequest {
 
     public Long getGeneratedBy() { return generatedBy; }
     public void setGeneratedBy(Long generatedBy) { this.generatedBy = generatedBy; }
+
+    public Long getCycleId() { return cycleId; }
+    public void setCycleId(Long cycleId) { this.cycleId = cycleId; }
 }

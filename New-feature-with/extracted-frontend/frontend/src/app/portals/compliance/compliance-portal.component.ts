@@ -2,11 +2,14 @@ import { Component, OnInit, signal, effect, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Chart } from 'chart.js/auto';
+import { forkJoin, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
 import { AuthService, User } from '../../core/services/auth.service';
 import { AccountService } from '../../core/services/account.service';
 import { BillingService } from '../../core/services/billing.service';
 import { IamService } from '../../core/services/iam.service';
 import { PlanService } from '../../core/services/plan.service';
+import { UsageService } from '../../core/services/usage.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { ToastService } from '../../core/services/toast.service';
 import { fadeInUp, staggerFadeIn, shake, scaleIn } from '../../shared/animations';
@@ -35,6 +38,7 @@ export class CompliancePortalComponent implements OnInit {
   kycPage = 1;
   plansPage = 1;
   addOnsPage = 1;
+  usageAuditPage = 1;
 
   // User session
   user!: User;
@@ -57,11 +61,16 @@ export class CompliancePortalComponent implements OnInit {
   catalogPlans: any[] = [];
   catalogAddOns: any[] = [];
 
+  // Data Usage Audit
+  usageAuditRows: any[] = [];
+  isUsageAuditLoading = false;
+
   constructor(
     public authService: AuthService,
     private accountService: AccountService,
     private billingService: BillingService,
     private planService: PlanService,
+    private usageService: UsageService,
     public notificationService: NotificationService,
     private toastService: ToastService,
     private iamService: IamService
@@ -125,6 +134,81 @@ export class CompliancePortalComponent implements OnInit {
     this.activeTab.set(tab);
     this.isNotificationOpen.set(false);
     if (tab === 'catalog') this.loadCatalog();
+    if (tab === 'usage-audit') this.loadUsageAudit();
+  }
+
+  // ==========================================
+  // Data Usage Audit — usage vs. plan entitlement, per SIM line
+  // ==========================================
+  loadUsageAudit(): void {
+    this.isUsageAuditLoading = true;
+    const accounts$ = this.accounts.length ? of(this.accounts) : this.accountService.getAllAccounts();
+    const plans$ = this.catalogPlans.length ? of(this.catalogPlans) : this.planService.getPlans(false);
+
+    forkJoin({
+      accounts: accounts$,
+      subscriptions: this.planService.getAllSubscriptions(),
+      summaries: this.usageService.getAllSummaries(),
+      plans: plans$
+    }).pipe(
+      switchMap(({ accounts, subscriptions, summaries, plans }) => {
+        const lineCalls = (accounts ?? []).map((a: any) =>
+          this.accountService.getSimLines(a.accountId).pipe(
+            map((lines: any[]) => (lines ?? []).map(l => ({ ...l, accountId: a.accountId, subscriberId: a.subscriberId })))
+          )
+        );
+        return forkJoin(lineCalls.length ? lineCalls : [of([] as any[])]).pipe(
+          map((linesByAccount: any[][]) => ({ accounts, subscriptions, summaries, plans, lines: linesByAccount.flat() }))
+        );
+      })
+    ).subscribe({
+      next: ({ accounts, subscriptions, summaries, plans, lines }) => {
+        const lineMap = new Map<number, any>((lines ?? []).map((l: any) => [l.lineId, l]));
+        const subByLine = new Map<number, any>((subscriptions ?? []).map((s: any) => [s.lineId, s]));
+        const planById = new Map<number, any>((plans ?? []).map((p: any) => [p.planId, p]));
+        const accountById = new Map<number, any>((accounts ?? []).map((a: any) => [a.accountId, a]));
+
+        this.usageAuditRows = (summaries ?? []).map((s: any) => {
+          const line = lineMap.get(s.lineId);
+          const sub = line ? subByLine.get(line.lineId) : null;
+          const plan = sub ? planById.get(sub.planId) : null;
+          const account = line ? accountById.get(line.accountId) : null;
+
+          const dataLimitMb = plan?.dataGb ? Number(plan.dataGb) * 1024 : 0;
+          const voiceLimitMin = Number(plan?.voiceMinutes ?? 0);
+          const smsLimit = Number(plan?.smsCount ?? 0);
+
+          const dataPct = dataLimitMb > 0 ? Math.min(999, Math.round(((s.dataUsedMb ?? 0) / dataLimitMb) * 100)) : 0;
+          const voicePct = voiceLimitMin > 0 ? Math.min(999, Math.round(((s.voiceUsedMin ?? 0) / voiceLimitMin) * 100)) : 0;
+          const smsPct = smsLimit > 0 ? Math.min(999, Math.round(((s.smsUsed ?? 0) / smsLimit) * 100)) : 0;
+          const maxPct = Math.max(dataPct, voicePct, smsPct);
+
+          return {
+            lineId: s.lineId,
+            msisdn: line?.msisdn ?? '—',
+            accountId: line?.accountId ?? null,
+            subscriberId: account?.subscriberId ?? line?.subscriberId ?? null,
+            planName: plan?.name ?? 'Unknown plan',
+            dataUsedMb: s.dataUsedMb ?? 0,
+            dataLimitMb,
+            dataPct,
+            voiceUsedMin: s.voiceUsedMin ?? 0,
+            voiceLimitMin,
+            voicePct,
+            smsUsed: s.smsUsed ?? 0,
+            smsLimit,
+            smsPct,
+            maxPct,
+            status: maxPct >= 90 ? 'Critical' : (maxPct >= 80 ? 'Warning' : 'Normal')
+          };
+        }).sort((a: any, b: any) => b.maxPct - a.maxPct);
+        this.isUsageAuditLoading = false;
+      },
+      error: () => {
+        this.toastService.error('Failed to load usage audit data.');
+        this.isUsageAuditLoading = false;
+      }
+    });
   }
 
   loadCatalog(): void {

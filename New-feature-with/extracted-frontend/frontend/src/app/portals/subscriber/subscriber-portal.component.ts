@@ -323,22 +323,47 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     this.billingService.getInvoicesByAccount(accountId).subscribe({
       next: (invoices: any[]) => {
         const list = Array.isArray(invoices) ? invoices : [];
-        if (!list.length) return;
-        const latest = list.reduce((a, b) => ((b?.cycleId ?? 0) > (a?.cycleId ?? 0) ? b : a));
-        this.activeBillingCycleId = latest?.cycleId ?? null;
-        if (!this.activeBillingCycleId) return;
+        if (list.length) {
+          const latest = list.reduce((a, b) => ((b?.cycleId ?? 0) > (a?.cycleId ?? 0) ? b : a));
+          const cycleId = latest?.cycleId ?? null;
+          if (cycleId) { this.activeBillingCycleId = cycleId; this.loadSummaryForCycle(line, cycleId); return; }
+        }
+        // No invoice yet — fall back to the latest cycle the line already has usage for.
+        this.deriveCycleFromUsageRecords(line);
+      },
+      error: () => this.deriveCycleFromUsageRecords(line)
+    });
+  }
 
-        this.usageService.getSummary(line.lineId, this.activeBillingCycleId).subscribe({
-          next: (summary) => {
-            this.usageSummary = summary;
-            if (this.activeTab() === 'usage') setTimeout(() => this.renderUsageChart(), 100);
-          },
-          error: () => {}
-        });
-        this.loadUsageRecords(line.lineId, this.activeBillingCycleId);
+  /** Fallback cycle resolution for lines without an invoice: use the newest cycle
+   *  that already has usage records so the dashboard still renders. */
+  private deriveCycleFromUsageRecords(line: any): void {
+    this.usageService.getRecordsByLine(line.lineId).subscribe({
+      next: (res: any) => {
+        const records = Array.isArray(res?.records) ? res.records : (Array.isArray(res) ? res : []);
+        const cycleId = records.reduce((m: number, r: any) => Math.max(m, Number(r?.billingCycleId ?? 0)), 0);
+        if (cycleId > 0) { this.activeBillingCycleId = cycleId; this.loadSummaryForCycle(line, cycleId); }
       },
       error: () => {}
     });
+  }
+
+  /** Load the usage summary + records for a resolved line + cycle, seeding the
+   *  summary if the active plan has none yet. */
+  private loadSummaryForCycle(line: any, cycleId: number): void {
+    this.usageService.getSummary(line.lineId, cycleId).subscribe({
+      next: (summary) => {
+        this.usageSummary = summary;
+        if (this.activeTab() === 'usage') setTimeout(() => this.renderUsageChart(), 100);
+      },
+      error: () => {
+        // No summary for this cycle yet. If the line has an active plan with real
+        // entitlements, bootstrap usage tracking so the backend simulator starts
+        // growing it (every 2 minutes).
+        this.bootstrapUsageSummaryIfActivePlan(line, cycleId);
+      }
+    });
+    this.loadUsageRecords(line.lineId, cycleId);
   }
 
   private loadUsageRecords(lineId: number, cycleId: number): void {
@@ -381,6 +406,9 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
   setTab(tab: string): void {
     this.activeTab.set(tab);
     this.isNotificationOpen.set(false);
+    // Re-pull the latest usage summary each time the dashboard is opened so it
+    // stays in sync with the 10-minute simulator without a full page reload.
+    if (tab === 'usage') this.loadUsage();
   }
 
   toggleSidebar(): void {
@@ -643,6 +671,58 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
    * limits) for the line+cycle. Once the summary exists the scheduled usage simulator
    * grows it over time, so a newly activated plan starts tracking immediately.
    */
+  /**
+   * When the active cycle has no usage summary yet, seed one (only if the line
+   * carries an active plan with real entitlements) and then reload it. The backend
+   * upserts the summary, so this is safe to call once whenever the summary is missing.
+   * The usage simulator takes over from there, updating the values every 10 minutes.
+   */
+  private bootstrapUsageSummaryIfActivePlan(line: any, cycleId: number): void {
+    const sub = line?.activeSubscription;
+    if (!sub || sub.status !== 'A') return;
+
+    // Resolve the plan's entitlements. The enriched subscription plan may be a bare
+    // stub if the plan catalogue hadn't loaded during account enrichment, so fall
+    // back to looking the plan up by planId from the (now-loaded) catalogue.
+    let plan = sub.plan;
+    if (!(Number(plan?.dataGb) > 0) && sub.planId) {
+      const fromCatalogue = this.availablePlans().find((p: any) => p.planId === sub.planId);
+      if (fromCatalogue) plan = fromCatalogue;
+    }
+
+    const dataLimitMb = Number(plan?.dataGb ?? 0) * 1024;
+    const voiceLimitMin = Number(plan?.voiceMinutes ?? 0);
+    const smsLimit = Number(plan?.smsCount ?? 0);
+    if (dataLimitMb <= 0 && voiceLimitMin <= 0 && smsLimit <= 0) {
+      console.warn('[Usage] Skipping bootstrap — no plan entitlements found for line', line?.lineId);
+      return;
+    }
+
+    // Seed the summary, then load it *after* the create succeeds (no timing race).
+    this.usageService.createRecord({
+      lineId: line.lineId,
+      billingCycleId: cycleId,
+      usageType: 'DATA',
+      quantity: 1, // backend requires quantity > 0; 1 MB is a negligible seed
+      usageDate: new Date().toISOString().slice(0, 19),
+      dataLimitMb,
+      voiceLimitMin,
+      smsLimit
+    }).subscribe({
+      next: () => {
+        this.usageService.getSummary(line.lineId, cycleId).subscribe({
+          next: (summary) => {
+            this.usageSummary = summary;
+            this.loadUsageRecords(line.lineId, cycleId);
+            if (this.activeTab() === 'usage') setTimeout(() => this.renderUsageChart(), 100);
+          },
+          error: (err) => console.error('[Usage] Seeded record but summary still missing:', err?.status, err?.error)
+        });
+      },
+      error: (err) => console.error('[Usage] Failed to seed usage tracking:', err?.status, err?.error)
+    });
+  }
+
   private seedUsageTracking(lineId: number, cycleId: number, plan: any): void {
     const dataLimitMb = Number(plan?.dataGb ?? 0) * 1024;
     const voiceLimitMin = Number(plan?.voiceMinutes ?? 0);
@@ -959,23 +1039,70 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     return perDay >= 1 ? perDay.toFixed(1) + ' GB/Day' : (perDay * 1024).toFixed(0) + ' MB/Day';
   }
 
+  /** True once a usage summary has been loaded for the active cycle. */
+  get hasUsageData(): boolean { return !!this.usageSummary; }
+
+  // ── Plan limits (denominators) ────────────────────────────────────────────────
+  // The subscribed plan is the single source of truth for entitlements. A limit of
+  // 0 (or missing) means the plan is *unlimited* for that metric — e.g. unlimited
+  // voice — and must NOT be rendered as "100% used".
+  private get plan(): any {
+    const sub = this.account360?.lines?.[0]?.activeSubscription;
+    if (!sub) return null;
+    // If the enriched plan is a stub (no entitlements), resolve it from the loaded
+    // plan catalogue by planId so limits/unlimited flags are always accurate.
+    if (Number(sub.plan?.dataGb) > 0) return sub.plan;
+    return this.availablePlans().find((p: any) => p.planId === sub.planId) ?? sub.plan ?? null;
+  }
+
+  get dataLimitGb(): number { return Math.max(0, Number(this.plan?.dataGb ?? 0)); }
+  get voiceLimitMin(): number { return Math.max(0, Number(this.plan?.voiceMinutes ?? 0)); }
+  get smsLimit(): number { return Math.max(0, Number(this.plan?.smsCount ?? 0)); }
+
+  get isDataUnlimited(): boolean { return this.dataLimitGb <= 0; }
+  get isVoiceUnlimited(): boolean { return this.voiceLimitMin <= 0; }
+  get isSmsUnlimited(): boolean { return this.smsLimit <= 0; }
+
+  // ── Used values (from the backend summary) ─────────────────────────────────────
+  get voiceUsedMin(): number { return Number(this.usageSummary?.voiceUsedMin ?? 0); }
+  get smsUsed(): number { return Number(this.usageSummary?.smsUsed ?? 0); }
+
+  // ── Remaining values (derived: limit − used, so cards always stay consistent) ──
+  get voiceRemainingMin(): number {
+    return this.isVoiceUnlimited ? 0 : Math.max(0, this.voiceLimitMin - this.voiceUsedMin);
+  }
+  get smsRemaining(): number {
+    return this.isSmsUnlimited ? 0 : Math.max(0, this.smsLimit - this.smsUsed);
+  }
+
+  // ── Usage percentages (used / limit — matches the reference design) ────────────
   getDataPercentage(): number {
-    if (!this.usageSummary?.dataUsedMb) return 0;
-    const total = this.usageSummary.dataUsedMb + (this.usageSummary.dataRemainingMb ?? 0);
-    return total === 0 ? 0 : Math.min(100, Math.round((this.usageSummary.dataUsedMb / total) * 100));
+    return this.isDataUnlimited ? 0 : Math.min(100, Math.round((this.dataUsedGb / this.dataLimitGb) * 100));
   }
-
   getVoicePercentage(): number {
-    if (!this.usageSummary?.voiceUsedMin) return 0;
-    const total = this.usageSummary.voiceUsedMin + (this.usageSummary.voiceRemainingMin ?? 0);
-    return total === 0 ? 0 : Math.min(100, Math.round((this.usageSummary.voiceUsedMin / total) * 100));
+    return this.isVoiceUnlimited ? 0 : Math.min(100, Math.round((this.voiceUsedMin / this.voiceLimitMin) * 100));
+  }
+  getSmsPercentage(): number {
+    return this.isSmsUnlimited ? 0 : Math.min(100, Math.round((this.smsUsed / this.smsLimit) * 100));
   }
 
-  getSmsPercentage(): number {
-    if (!this.usageSummary?.smsUsed) return 0;
-    const total = this.usageSummary.smsUsed + (this.usageSummary.smsRemaining ?? 0);
-    return total === 0 ? 0 : Math.min(100, Math.round((this.usageSummary.smsUsed / total) * 100));
+  // ── Remaining percentages (remaining / limit — drives the meter widths) ────────
+  getDataRemainingPercentage(): number {
+    return this.isDataUnlimited ? 100 : Math.max(0, Math.min(100, Math.round((this.dataRemainingGb / this.dataLimitGb) * 100)));
   }
+  getVoiceRemainingPercentage(): number {
+    return this.isVoiceUnlimited ? 100 : Math.max(0, Math.min(100, Math.round((this.voiceRemainingMin / this.voiceLimitMin) * 100)));
+  }
+  getSmsRemainingPercentage(): number {
+    return this.isSmsUnlimited ? 100 : Math.max(0, Math.min(100, Math.round((this.smsRemaining / this.smsLimit) * 100)));
+  }
+
+  /** Status label for the Limit Status Panel — crosses the 90% warning threshold. */
+  limitStatusLabel(pct: number): string {
+    return pct >= 90 ? `${pct}% · 90% threshold crossed` : `${pct}% · Normal`;
+  }
+  /** True when the metric has crossed the 90% warning threshold (renders red). */
+  limitStatusCritical(pct: number): boolean { return pct >= 90; }
 
   getDashOffset(percentage: number): number {
     // Ring circumference is 2 * PI * r = 2 * 3.1415 * 40 = 251.2
@@ -1009,7 +1136,9 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
 
   // ── Usage forecast / insights ────────────────────────────────────────────────
   get dataUsedGb(): number { return (this.usageSummary?.dataUsedMb ?? 0) / 1024; }
-  get dataRemainingGb(): number { return (this.usageSummary?.dataRemainingMb ?? 0) / 1024; }
+  get dataRemainingGb(): number {
+    return this.isDataUnlimited ? 0 : Math.max(0, this.dataLimitGb - this.dataUsedGb);
+  }
 
   /** Average data consumed per active day this cycle, in MB. */
   get avgDailyDataMb(): number {
@@ -1030,25 +1159,25 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
 
   private drawUsageChart(ctx: HTMLCanvasElement, labels: string[], data: number[]): void {
     this.usageChart = new Chart(ctx, {
-      type: 'line',
+      type: 'bar',
       data: {
         labels,
         datasets: [{
-          label: 'Data Used (GB)',
+          label: 'Data (GB)',
           data,
-          borderColor: '#3B4FE0',
-          backgroundColor: 'rgba(59, 79, 224, 0.08)',
-          fill: true,
-          tension: 0.35,
-          borderWidth: 3,
-          pointRadius: 4,
-          pointBackgroundColor: '#3B4FE0'
+          backgroundColor: '#3b82f6',
+          hoverBackgroundColor: '#2563eb',
+          borderRadius: 6,
+          maxBarThickness: 34
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c: any) => `${Number(c.raw).toFixed(2)} GB` } }
+        },
         scales: {
           x: { grid: { display: false } },
           y: { grid: { color: '#e2e8f0' }, beginAtZero: true }

@@ -180,6 +180,12 @@ public class UsageService {
         return toSummaryDTO(summary);
     }
 
+    // 4b. FETCH ALL SUMMARIES (cross-service use — e.g. Notification's usage-threshold sweep)
+    public List<UsageSummaryResponse> fetchAllSummaries() {
+        log.debug("Fetching all usage summaries");
+        return summaryRepo.findAll().stream().map(this::toSummaryDTO).collect(Collectors.toList());
+    }
+
     // 5. UPDATE SUMMARY MANUALLY
     public Map<String, Object> updateSummary(Long lineId, Long billingCycleId,
             BigDecimal dataUsedMb,

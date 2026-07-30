@@ -40,6 +40,12 @@ public class FaultTicket {
     @Column(name = "resolvedDate", nullable = true)
     private LocalDate resolvedDate;
 
+    // SLA deadline — computed at creation from priority (see Priority.slaDays()).
+    // Breached when status is still O/P past this date; the escalation scheduler
+    // then flips status to E (Escalated).
+    @Column(name = "dueDate", nullable = true)
+    private LocalDate dueDate;
+
     // assignedToId from Module 4.1 — stored as plain Integer, no @ManyToOne; nullable until assigned
     @Column(name = "assignedToId", nullable = true)
     private Integer assignedToId;
@@ -53,8 +59,18 @@ public class FaultTicket {
     }
 
     public enum Priority {
-        L, M, H, C
+        L, M, H, C;
         // L=Low  M=Medium  H=High  C=Critical
+
+        /** SLA resolution window in days, by priority. */
+        public int slaDays() {
+            return switch (this) {
+                case C -> 1;
+                case H -> 2;
+                case M -> 3;
+                case L -> 5;
+            };
+        }
     }
 
     public enum TicketStatus {

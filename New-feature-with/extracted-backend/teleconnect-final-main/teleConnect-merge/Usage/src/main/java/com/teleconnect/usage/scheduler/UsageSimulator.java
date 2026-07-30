@@ -27,8 +27,8 @@ import java.util.Random;
  * line naturally stops growing once it reaches its plan limit.
  *
  * Controlled via configuration:
- *   usage.simulator.enabled     (default true)  — master on/off switch
- *   usage.simulator.interval-ms (default 60000) — how often a tick fires
+ *   usage.simulator.enabled     (default true)   — master on/off switch
+ *   usage.simulator.interval-ms (default 120000) — how often a tick fires (2 minutes)
  */
 @Slf4j
 @Component
@@ -47,7 +47,7 @@ public class UsageSimulator {
         this.recordRepository = recordRepository;
     }
 
-    @Scheduled(fixedRateString = "${usage.simulator.interval-ms:60000}")
+    @Scheduled(fixedRateString = "${usage.simulator.interval-ms:120000}")
     @Transactional
     public void simulate() {
         if (!enabled) {

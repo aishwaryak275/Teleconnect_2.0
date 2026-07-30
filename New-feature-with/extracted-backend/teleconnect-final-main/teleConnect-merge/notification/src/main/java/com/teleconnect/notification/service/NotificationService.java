@@ -31,4 +31,12 @@ public interface NotificationService {
     String dismissNotification(Long notificationId);
 
     String markAllAsRead(Long userId);
+
+    /**
+     * Used by scheduled alert producers (usage threshold, plan expiry, invoice due,
+     * fault update / SLA breach). Creates the notification unless the user already
+     * has an UNREAD one in the same category from today — schedulers run repeatedly
+     * (hourly/daily) for an ongoing condition, so this prevents alert spam.
+     */
+    void createIfNew(Long userId, String message, NotificationCategory category);
 }

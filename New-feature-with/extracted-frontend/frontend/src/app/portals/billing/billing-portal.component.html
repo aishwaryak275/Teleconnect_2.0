@@ -512,7 +512,7 @@
           <div class="bg-white rounded-xl border border-slate-200 p-5">
             <p class="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">Dispute Rate</p>
             <p class="text-2xl font-bold text-rose-600 mt-2">{{ reportKpis.disputeRate }}%</p>
-            <p class="text-xs text-slate-400 mt-1">↑ {{ reportKpis.disputeRateDelta }}% vs prior month</p>
+            <p class="text-xs text-slate-400 mt-1">of all invoices this period</p>
           </div>
           <div class="bg-white rounded-xl border border-slate-200 p-5">
             <p class="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">Avg Invoice</p>
@@ -625,10 +625,18 @@
               </select>
             </div>
 
-            <div class="flex items-center justify-between py-3">
+            <div class="flex items-center justify-between py-3 border-b border-slate-50">
               <div><p class="text-sm font-medium text-slate-800">Tax Rate</p><p class="text-xs text-slate-400">Applied to all taxable charges</p></div>
               <div class="relative">
                 <input formControlName="taxRate" type="number" step="0.1" class="w-24 text-sm text-right border border-slate-200 rounded-lg pl-3 pr-6 py-2 focus:outline-none focus:ring-2 focus:ring-primary-200" />
+                <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between py-3">
+              <div><p class="text-sm font-medium text-slate-800">Late Fee Rate</p><p class="text-xs text-slate-400">Applied to invoices past their grace period — shared with Admin Console tariff settings</p></div>
+              <div class="relative">
+                <input formControlName="lateFeePercentage" type="number" step="0.1" min="0" class="w-24 text-sm text-right border border-slate-200 rounded-lg pl-3 pr-6 py-2 focus:outline-none focus:ring-2 focus:ring-primary-200" />
                 <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
               </div>
             </div>

@@ -57,6 +57,18 @@
           <span class="font-medium text-sm" *ngIf="!isSidebarCollapsed()">User Manager</span>
         </button>
 
+        <!-- Region Management -->
+        <button (click)="setTab('regions')"
+          [class.bg-sky-100]="activeTab() === 'regions'" [class.text-sky-700]="activeTab() === 'regions'"
+          [class.text-slate-500]="activeTab() !== 'regions'"
+          class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl hover:bg-sky-50 hover:text-sky-700 transition duration-150 cursor-pointer focus:outline-none">
+          <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span class="font-medium text-sm" *ngIf="!isSidebarCollapsed()">Region Management</span>
+        </button>
+
         <!-- Customer 360 -->
         <button (click)="setTab('customer360')"
           [class.bg-sky-100]="activeTab() === 'customer360'" [class.text-sky-700]="activeTab() === 'customer360'"
@@ -94,10 +106,12 @@
           <span *ngIf="activeTab() === 'catalog'">Plan Catalog</span>
           <span *ngIf="activeTab() === 'config'">Tariff Settings</span>
           <span *ngIf="activeTab() === 'users'">User Manager</span>
+          <span *ngIf="activeTab() === 'regions'">Region Management</span>
           <span *ngIf="activeTab() === 'auditLogs'">Audit Logs</span>
         </h2>
         <p class="text-xs text-slate-400 font-light">
           <span *ngIf="activeTab() === 'users'">Control users, create staff accounts, manage roles and verify status</span>
+          <span *ngIf="activeTab() === 'regions'">Add and retire the RegionID catalog used across subscriber and staff registration</span>
           <span *ngIf="activeTab() === 'auditLogs'">Compliance and security logs tracking system access and administrative actions</span>
         </p>
       </div>
@@ -280,10 +294,93 @@
               <input type="number" formControlName="lateFeeGraceDays" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
             </div>
           </div>
+
+          <div class="border-t border-slate-100 pt-4 mt-2">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Provisioning Rules</p>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Auto-Suspend After (Days Overdue)</label>
+                <input type="number" formControlName="autoSuspendDays" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
+              </div>
+              <div class="flex flex-col gap-2 justify-center">
+                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input type="checkbox" formControlName="alertThreshold80" class="w-4 h-4 rounded accent-sky-500" />
+                  Alert subscriber at 80% usage
+                </label>
+                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input type="checkbox" formControlName="alertThreshold100" class="w-4 h-4 rounded accent-sky-500" />
+                  Alert subscriber at 100% usage
+                </label>
+              </div>
+            </div>
+          </div>
+
           <button type="submit" [disabled]="configForm.invalid" class="w-full mt-4 py-3 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-bold rounded-xl text-xs cursor-pointer shadow-lg shadow-sky-500/15">
             Save Configuration Changes
           </button>
         </form>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- TAB: REGION MANAGEMENT                     -->
+      <!-- ========================================== -->
+      <div *ngIf="activeTab() === 'regions'" [@fadeInUp] class="grid md:grid-cols-12 gap-6">
+        <div class="md:col-span-4 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 h-fit">
+          <h3 class="text-base font-bold text-slate-800 mb-4">Add Region</h3>
+          <form [formGroup]="regionForm" (ngSubmit)="createRegion()" class="flex flex-col gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Region Name</label>
+              <input type="text" formControlName="name" placeholder="e.g. South Zone"
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
+            </div>
+            <button type="submit" [disabled]="regionForm.invalid"
+              class="w-full py-3 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-bold rounded-xl text-xs cursor-pointer shadow-lg shadow-sky-500/15">
+              Add Region
+            </button>
+          </form>
+        </div>
+
+        <div class="md:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h3 class="text-base font-bold text-slate-800 tracking-tight">Region Catalog</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50 border-b border-slate-100">
+                  <th class="px-6 py-3">Region ID</th>
+                  <th class="px-6 py-3">Name</th>
+                  <th class="px-6 py-3">Status</th>
+                  <th class="px-6 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr *ngFor="let r of regions | paginate: regionsPage : pageSize" class="hover:bg-slate-50/20">
+                  <td class="px-6 py-3 font-semibold text-slate-700">#{{ r.regionId }}</td>
+                  <td class="px-6 py-3 text-slate-800 font-medium">{{ r.name }}</td>
+                  <td class="px-6 py-3">
+                    <span [class.bg-emerald-100]="r.status === 'Active'" [class.text-emerald-700]="r.status === 'Active'"
+                          [class.bg-slate-100]="r.status !== 'Active'" [class.text-slate-500]="r.status !== 'Active'"
+                          class="px-2.5 py-0.5 rounded-full text-xs font-semibold">{{ r.status }}</span>
+                  </td>
+                  <td class="px-6 py-3 text-right">
+                    <button (click)="toggleRegionStatus(r)"
+                      class="px-3.5 py-1.5 text-xs font-semibold rounded-lg shadow cursor-pointer"
+                      [class.bg-rose-500]="r.status === 'Active'" [class.hover:bg-rose-600]="r.status === 'Active'"
+                      [class.bg-emerald-500]="r.status !== 'Active'" [class.hover:bg-emerald-600]="r.status !== 'Active'"
+                      [class.text-white]="true">
+                      {{ r.status === 'Active' ? 'Retire' : 'Reactivate' }}
+                    </button>
+                  </td>
+                </tr>
+                <tr *ngIf="regions.length === 0">
+                  <td colspan="4" class="px-6 py-8 text-center text-slate-400 font-light">No regions defined yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <app-paginator [total]="regions.length" [page]="regionsPage" [size]="pageSize" (pageChange)="regionsPage = $event"></app-paginator>
+        </div>
       </div>
 
       <!-- ========================================== -->
@@ -1208,14 +1305,16 @@
           <p class="mt-1 text-xs text-rose-500" [class.invisible]="!(registerForm.get('phone')?.invalid && registerForm.get('phone')?.touched)">Phone number must be exactly 10 digits.</p>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Region ID</label>
-          <input
-            type="number"
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Region</label>
+          <select
             formControlName="regionId"
-            placeholder="e.g. 1"
-            min="1"
             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition"
-          />
+          >
+            <option [ngValue]="null">Select a region…</option>
+            <option *ngFor="let r of regions" [ngValue]="r.regionId" [disabled]="r.status !== 'Active'">
+              {{ r.name }}{{ r.status !== 'Active' ? ' (Inactive)' : '' }}
+            </option>
+          </select>
         </div>
       </div>
 

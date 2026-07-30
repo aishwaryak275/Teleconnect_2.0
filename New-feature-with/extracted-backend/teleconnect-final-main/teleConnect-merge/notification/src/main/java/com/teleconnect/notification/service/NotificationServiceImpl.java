@@ -124,6 +124,24 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    public void createIfNew(Long userId, String message, NotificationCategory category) {
+        if (userId == null) return;
+        LocalDateTime sinceStartOfToday = LocalDateTime.now().toLocalDate().atStartOfDay();
+        boolean alreadyAlertedToday = repository.existsByUserIdAndCategoryAndStatusAndCreatedDateAfter(
+                userId, category, NotificationStatus.UNREAD, sinceStartOfToday);
+        if (alreadyAlertedToday) {
+            return;
+        }
+        Notification notification = new Notification();
+        notification.setUserId(userId);
+        notification.setMessage(message);
+        notification.setCategory(category);
+        notification.setStatus(NotificationStatus.UNREAD);
+        notification.setCreatedDate(LocalDateTime.now());
+        repository.save(notification);
+    }
+
+    @Override
     public String markAllAsRead(Long userId) {
 
         List<Notification> notifications =

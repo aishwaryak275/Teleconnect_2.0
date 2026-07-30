@@ -81,6 +81,14 @@ public class UsageController {
                 return ResponseEntity.ok(summary);
         }
 
+        // Cross-service bulk read — backs the Notification module's usage-threshold sweep.
+        @GetMapping("/allSummaries")
+        @PreAuthorize("hasAuthority('USAGE_ANALYTICS')")
+        public ResponseEntity<List<UsageSummaryResponse>> fetchAllSummaries() {
+                log.info("Fetching all usage summaries");
+                return ResponseEntity.ok(usageService.fetchAllSummaries());
+        }
+
         @PutMapping("/updateSummary/{lineId}/{billingCycleId}")
         @PreAuthorize("hasAuthority('CREATE_USER')")
         public ResponseEntity<Map<String, Object>> updateSummary(

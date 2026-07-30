@@ -40,6 +40,11 @@ export class UsageService {
 
   // ── Summary ──────────────────────────────────────────────────────────────────
 
+  /** Cross-line bulk read (USAGE_ANALYTICS) — backs the Compliance data-usage audit. */
+  getAllSummaries(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/allSummaries`);
+  }
+
   getSummary(lineId: number, billingCycleId: number): Observable<any> {
     return this.http.get<any>(`${this.base}/fetchSummary/${lineId}/${billingCycleId}`);
   }

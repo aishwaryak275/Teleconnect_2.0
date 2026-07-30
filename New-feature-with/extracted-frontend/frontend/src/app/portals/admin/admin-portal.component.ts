@@ -50,6 +50,11 @@ export class AdminPortalComponent implements OnInit {
   // ── System Config ─────────────────────────────────────────────────────────────
   configForm!: FormGroup;
 
+  // ── Region Management ─────────────────────────────────────────────────────────
+  regions: any[] = [];
+  regionForm!: FormGroup;
+  regionsPage = 1;
+
   // ── User Manager ──────────────────────────────────────────────────────────────
   userManagerTab = signal<string>('directory');
   iamUsers: any[] = [];
@@ -132,6 +137,7 @@ export class AdminPortalComponent implements OnInit {
     this.loadAddOns();
     this.loadSystemConfig();
     this.loadIamUsers();
+    this.loadRegions();
   }
 
   initForms(): void {
@@ -183,6 +189,10 @@ export class AdminPortalComponent implements OnInit {
       regionId: [null]
     });
 
+    this.regionForm = this.fb.group({
+      name: ['', Validators.required]
+    });
+
     this.createAccountForm = this.fb.group({
       accountType: ['Prepaid', Validators.required],
       kycStatus:   ['Pending', Validators.required]
@@ -202,6 +212,41 @@ export class AdminPortalComponent implements OnInit {
     if (tab === 'users') this.loadIamUsers();
     if (tab === 'auditLogs') this.loadAuditLogs();
     if (tab === 'customer360') { this.search360Query = ''; this.selected360Account = null; this.search360Results = []; }
+    if (tab === 'regions') this.loadRegions();
+  }
+
+  // ── Region Management ─────────────────────────────────────────────────────────
+  loadRegions(): void {
+    this.iamService.getRegions().subscribe({
+      next: (data) => this.regions = data,
+      error: () => this.toastService.error('Failed to load regions.')
+    });
+  }
+
+  createRegion(): void {
+    if (this.regionForm.invalid) return;
+    const name = this.regionForm.value.name;
+    this.iamService.createRegion(name).subscribe({
+      next: () => {
+        this.toastService.success(`Region "${name}" created.`);
+        this.iamService.recordAudit('CREATE_REGION', 'ADMIN');
+        this.regionForm.reset();
+        this.loadRegions();
+      },
+      error: (err) => this.toastService.error(err.error?.message ?? 'Failed to create region.')
+    });
+  }
+
+  toggleRegionStatus(region: any): void {
+    const newStatus = region.status === 'Active' ? 'Inactive' : 'Active';
+    this.iamService.updateRegionStatus(region.regionId, newStatus).subscribe({
+      next: () => {
+        this.toastService.success(`Region "${region.name}" set to ${newStatus}.`);
+        this.iamService.recordAudit('UPDATE_REGION_STATUS', 'ADMIN');
+        this.loadRegions();
+      },
+      error: () => this.toastService.error('Failed to update region status.')
+    });
   }
 
   setUserManagerTab(sub: string): void {
