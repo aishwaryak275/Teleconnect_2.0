@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit, signal, computed, effect, HostListener } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, signal, computed, effect, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -25,7 +25,7 @@ import { PaginatorComponent } from '../../shared/pagination/paginator.component'
   styleUrls: ['./subscriber-portal.component.css'],
   animations: [fadeInUp, staggerFadeIn, shake, scaleIn]
 })
-export class SubscriberPortalComponent implements OnInit, AfterViewInit {
+export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestroy {
   // Pagination
   readonly pageSize = 8;
   invoicesPage = 1;
@@ -90,6 +90,12 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     if (this.hasActivePlan) return;
     this.openUpgradeModal(p);
   }
+
+  // Plan details pop-up (opened by the card's arrow).
+  detailsPlan: any = null;
+  openPlanDetails(p: any): void { this.detailsPlan = p; }
+  closePlanDetails(): void { this.detailsPlan = null; }
+
   targetPlan: any = null;
   changeRequestForm!: FormGroup;
   isUpgradeModalOpen = false;
@@ -130,6 +136,12 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
   // Chart reference
   private usageChart: Chart | null = null;
 
+  // Usage-threshold notifications (50/90/100%) — fire once each per line+cycle.
+  private firedUsageKeys = new Set<string>();
+  private usagePollHandle: any = null;
+  // Guard so we seed a missing usage summary at most once.
+  private usageSeeded = false;
+
   constructor(
     public authService: AuthService,
     private accountService: AccountService,
@@ -153,12 +165,20 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.user = this.authService.currentUser()!;
+    this.loadFiredUsageKeys();
     this.loadData();
     this.initForms();
+    // Poll usage so data-threshold alerts (50/90/100%) fire as consumption grows.
+    this.usagePollHandle = setInterval(() => this.refreshUsageSummary(), 20000);
   }
 
   ngAfterViewInit(): void {
     this.notificationService.refreshNotifications();
+  }
+
+  ngOnDestroy(): void {
+    if (this.usagePollHandle) { clearInterval(this.usagePollHandle); this.usagePollHandle = null; }
+    if (this.usageChart) { this.usageChart.destroy(); this.usageChart = null; }
   }
 
   private finishAccountLoad(account360: any): void {
@@ -321,9 +341,33 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     const accountId = this.account360?.accountId;
     if (!accountId) return;
     this.billingService.getInvoicesByAccount(accountId).subscribe({
-      next: data => { this.myInvoices = data; },
+      next: data => {
+        this.myInvoices = Array.isArray(data) ? data : [];
+        this.maybeHealInvoice();
+      },
       error: () => {}
     });
+  }
+
+  private healedInvoice = false;
+
+  /**
+   * Self-heal: if the subscriber has an active plan but no invoice (provisioning created a
+   * billing cycle without generating the bill), generate it now against the open cycle and
+   * seed usage — so billing + usage appear for every account on login. Runs at most once.
+   */
+  private maybeHealInvoice(): void {
+    if (this.healedInvoice || this.myInvoices.length > 0) return;
+    const line = this.account360?.lines?.[0];
+    const plan = this.activePlan;
+    const accountId = this.account360?.accountId;
+    if (!accountId || !line?.lineId || !plan?.planId || !this.hasActivePlan) return;
+    this.healedInvoice = true;
+    const planPrice = Number(plan.planPrice ?? 0);
+    const taxes = Math.round(planPrice * 0.18 * 100) / 100;
+    const start = this.todayStr();
+    const end = this.addDaysToDate(start, Number(plan.validityDays ?? 28));
+    this.autoCreateInvoice(accountId, line.lineId, plan, planPrice, taxes, start, end);
   }
 
   loadUsage(): void {
@@ -341,12 +385,10 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
         this.activeBillingCycleId = latest?.cycleId ?? null;
         if (!this.activeBillingCycleId) return;
 
-        this.usageService.getSummary(line.lineId, this.activeBillingCycleId).subscribe({
-          next: (summary) => {
-            this.usageSummary = summary;
-            if (this.activeTab() === 'usage') setTimeout(() => this.renderUsageChart(), 100);
-          },
-          error: () => {}
+        const lineId = line.lineId, cycleId = this.activeBillingCycleId;
+        this.usageService.getSummary(lineId, cycleId).subscribe({
+          next: (summary) => this.applyUsageSummary(summary, lineId, cycleId),
+          error: () => this.applyUsageSummary(null, lineId, cycleId)
         });
         this.loadUsageRecords(line.lineId, this.activeBillingCycleId);
       },
@@ -695,6 +737,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
       next: () => {
         this.isProcessingPayment = false;
         this.iamService.recordAudit('PLAN_ACTIVATED', 'SUBSCRIBER');
+        this.pushNotification(this.user?.id, `Your ${this.targetPlan.name} plan is now active.`, 'PLAN');
         this.toastService.success(
           `${this.targetPlan.name} activated! ₹${totalAmount.toFixed(0)} paid via ${paymentMethod}.`
         );
@@ -734,37 +777,48 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     cycleStart: string,
     cycleEnd: string
   ): void {
-    this.billingService.createBillingCycle(accountId, cycleStart, cycleEnd).subscribe({
-      next: (cycle: any) => {
-        const cycleId: number = cycle?.cycleId ?? cycle?.id;
-        if (!cycleId) {
-          this.toastService.error('Invoice not created: billing cycle ID missing.');
-          return;
-        }
-        this.billingService.generateInvoice({
-          accountId,
-          cycleId,
-          planCharges: planPrice,
-          excessCharges: 0,
-          addOnCharges: 0,
-          taxes
-        }).subscribe({
-          next: () => {
-            this.toastService.success('Invoice generated successfully.');
-            // Bootstrap usage tracking for this line+cycle so it starts accumulating.
+    const generate = (cycleId: number) => {
+      this.billingService.generateInvoice({
+        accountId, cycleId, planCharges: planPrice, excessCharges: 0, addOnCharges: 0, taxes
+      }).subscribe({
+        next: () => {
+          this.toastService.success('Invoice generated successfully.');
+          this.seedUsageTracking(lineId, cycleId, plan);
+          setTimeout(() => { this.loadInvoices(); this.loadUsage(); }, 600);
+        },
+        error: (err: any) => {
+          const msg: string = err?.error?.message ?? '';
+          if (msg.toLowerCase().includes('already exists')) {
+            // An invoice already exists for this cycle — surface it, don't error out.
             this.seedUsageTracking(lineId, cycleId, plan);
-            setTimeout(() => this.loadInvoices(), 500);
-          },
-          error: (err: any) => {
-            const msg = err.error?.message ?? `HTTP ${err.status}`;
-            this.toastService.error('Invoice generation failed: ' + msg);
+            setTimeout(() => { this.loadInvoices(); this.loadUsage(); }, 600);
+          } else {
+            this.toastService.error('Invoice generation failed: ' + (msg || `HTTP ${err?.status}`));
           }
-        });
+        }
+      });
+    };
+
+    const createCycleThenGenerate = () => {
+      this.billingService.createBillingCycle(accountId, cycleStart, cycleEnd).subscribe({
+        next: (cycle: any) => {
+          const cycleId: number = cycle?.cycleId ?? cycle?.id;
+          if (!cycleId) { this.toastService.error('Invoice not created: billing cycle ID missing.'); return; }
+          generate(cycleId);
+        },
+        error: (err: any) => this.toastService.error('Billing cycle creation failed: ' + (err?.error?.message ?? `HTTP ${err?.status}`))
+      });
+    };
+
+    // Reuse an existing OPEN cycle if present — the backend rejects a second open cycle
+    // per account, which was silently blocking the invoice for a newly-added plan.
+    this.billingService.getCyclesByAccount(accountId).subscribe({
+      next: (cycles: any[]) => {
+        const open = (cycles ?? []).find((c: any) => (c?.status ?? '').toString().toUpperCase() === 'OPEN');
+        if (open) generate(open.cycleId ?? open.id);
+        else createCycleThenGenerate();
       },
-      error: (err: any) => {
-        const msg = err.error?.message ?? `HTTP ${err.status}`;
-        this.toastService.error('Billing cycle creation failed: ' + msg);
-      }
+      error: () => createCycleThenGenerate()
     });
   }
 
@@ -884,6 +938,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     this.planService.updateSubscription(sub.subscriptionId, { addOnId: addOn.addOnId }).subscribe({
       next: () => {
         this.iamService.recordAudit('ADDON_ACTIVATED', 'SUBSCRIBER');
+        this.pushNotification(this.user?.id, `Your ${addOn.name} add-on is now active.`, 'PLAN');
         this.toastService.success(`${addOn.name} add-on activated!`);
         this.closeAddOnModal();
         // Bill the add-on: generate an invoice carrying the add-on charge, then record payment.
@@ -1138,6 +1193,27 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
   requestStatusLabel(s: string): string { return this.requestStatusWord[s] ?? s; }
   ticketStatusLabel(s: string): string { return this.ticketStatusWord[s] ?? s; }
 
+  /** True once an invoice is paid (backend status is upper-case, e.g. "PAID"). */
+  isInvoicePaid(inv: any): boolean {
+    return (inv?.status ?? '').toString().toUpperCase() === 'PAID';
+  }
+
+  isInvoiceDisputed(inv: any): boolean {
+    return (inv?.status ?? '').toString().toUpperCase() === 'DISPUTED';
+  }
+
+  /** Case-insensitive colour classes for an invoice status badge. */
+  invoiceBadgeClass(status: string): string {
+    switch ((status ?? '').toString().toUpperCase()) {
+      case 'PAID':      return 'bg-emerald-100 text-emerald-700';
+      case 'SENT':
+      case 'GENERATED': return 'bg-amber-100 text-amber-700';
+      case 'OVERDUE':   return 'bg-rose-100 text-rose-700';
+      case 'DISPUTED':  return 'bg-purple-100 text-purple-700';
+      default:          return 'bg-slate-100 text-slate-600';
+    }
+  }
+
   statusBadgeClass(label: string): string {
     switch (label) {
       case 'Open': return 'bg-slate-100 text-slate-600';
@@ -1191,6 +1267,115 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     // Ring circumference is 2 * PI * r = 2 * 3.1415 * 40 = 251.2
     const circumference = 251.2;
     return circumference - (percentage / 100) * circumference;
+  }
+
+  /**
+   * Rows for the Limit Status Panel. Held as a stable field (recomputed only when usage
+   * data loads) — NOT a getter, so change detection doesn't rebuild the array every cycle
+   * and thrash the responsive chart beside it.
+   */
+  limitRows: any[] = [];
+
+  recomputeLimitRows(): void {
+    const s = this.usageSummary ?? {};
+    this.limitRows = [
+      this.buildLimitRow('Data',  (Number(s.dataUsedMb ?? 0) / 1024), Number(this.activePlan?.dataGb ?? 0),       'GB',  1),
+      this.buildLimitRow('Voice', Number(s.voiceUsedMin ?? 0),        Number(this.activePlan?.voiceMinutes ?? 0), 'Min', 0),
+      this.buildLimitRow('SMS',   Number(s.smsUsed ?? 0),             Number(this.activePlan?.smsCount ?? 0),     'SMS', 0)
+    ];
+  }
+
+  private buildLimitRow(label: string, used: number, limit: number, unit: string, decimals: number): any {
+    const unlimited = !limit || limit <= 0;
+    const pct = unlimited ? 0 : Math.min(100, Math.round((used / limit) * 100));
+    let statusText: string, statusClass: string, barClass: string;
+    if (unlimited) {
+      statusText = 'Unlimited'; statusClass = 'text-emerald-600'; barClass = 'bg-emerald-300';
+    } else if (pct >= 90) {
+      statusText = `${pct}% · 90% threshold crossed`; statusClass = 'text-rose-600'; barClass = 'bg-amber-500';
+    } else if (pct >= 80) {
+      statusText = `${pct}% · Warning`; statusClass = 'text-amber-600'; barClass = 'bg-amber-500';
+    } else {
+      statusText = `${pct}% · Normal`; statusClass = 'text-sky-600'; barClass = 'bg-sky-500';
+    }
+    return {
+      label, unit, pct, unlimited, statusText, statusClass, barClass,
+      usedDisplay: used.toFixed(decimals),
+      limitDisplay: unlimited ? '∞' : limit.toFixed(decimals),
+      barWidth: unlimited ? 100 : pct
+    };
+  }
+
+  /** Lightweight periodic refresh of the usage summary/records (drives threshold alerts). */
+  private refreshUsageSummary(): void {
+    const line = this.account360?.lines?.[0];
+    if (!line?.lineId || !this.activeBillingCycleId) return;
+    const lineId = line.lineId, cycleId = this.activeBillingCycleId;
+    this.usageService.getSummary(lineId, cycleId).subscribe({
+      next: (summary) => this.applyUsageSummary(summary, lineId, cycleId),
+      error: () => this.applyUsageSummary(null, lineId, cycleId)
+    });
+    this.loadUsageRecords(lineId, cycleId);
+  }
+
+  /**
+   * Apply a fetched usage summary. If none exists yet for this line+cycle (e.g. a plan
+   * provisioned by Admin/CS that didn't seed usage), seed it once from the active plan's
+   * limits and refetch — so Usage Tracking is never left empty for an active plan.
+   */
+  private applyUsageSummary(summary: any, lineId: number, cycleId: number): void {
+    const valid = summary && (summary.dataRemainingMb != null || summary.dataUsedMb != null);
+    if (valid) {
+      this.usageSummary = summary;
+      this.recomputeLimitRows();
+      this.checkDataUsageThresholds();
+      if (this.activeTab() === 'usage') setTimeout(() => this.renderUsageChart(), 100);
+    } else if (!this.usageSeeded && this.activePlan?.planId) {
+      this.usageSeeded = true;
+      this.seedUsageTracking(lineId, cycleId, this.activePlan);
+      setTimeout(() => this.refreshUsageSummary(), 1500);
+    }
+  }
+
+  /** Fire a USAGE notification the first time data crosses 50%, 90% and 100% this cycle. */
+  private checkDataUsageThresholds(): void {
+    const line = this.account360?.lines?.[0];
+    const cycle = this.activeBillingCycleId;
+    const uid = this.user?.id;
+    if (!line?.lineId || !cycle || !uid || !this.usageSummary) return;
+
+    const used = Number(this.usageSummary.dataUsedMb ?? 0);
+    const rem = Number(this.usageSummary.dataRemainingMb ?? 0);
+    const total = used + rem;
+    if (total <= 0) return;
+    const pct = (used / total) * 100;
+
+    const milestones = [
+      { t: 50,  msg: 'You have used 50% of your data allowance.' },
+      { t: 90,  msg: 'Alert: you have used 90% of your data allowance.' },
+      { t: 100, msg: 'You have used 100% of your data — your data allowance is exhausted.' }
+    ];
+    for (const m of milestones) {
+      const key = `${line.lineId}:${cycle}:${m.t}`;
+      if (pct >= m.t && !this.firedUsageKeys.has(key)) {
+        this.firedUsageKeys.add(key);
+        this.persistFiredUsageKeys();
+        this.pushNotification(uid, m.msg, 'USAGE');
+      }
+    }
+  }
+
+  private usageKeysStorageKey(): string { return `usageNotified:${this.user?.id}`; }
+
+  private loadFiredUsageKeys(): void {
+    try {
+      const raw = localStorage.getItem(this.usageKeysStorageKey());
+      if (raw) this.firedUsageKeys = new Set<string>(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }
+
+  private persistFiredUsageKeys(): void {
+    try { localStorage.setItem(this.usageKeysStorageKey(), JSON.stringify([...this.firedUsageKeys])); } catch { /* ignore */ }
   }
 
   renderUsageChart(): void {

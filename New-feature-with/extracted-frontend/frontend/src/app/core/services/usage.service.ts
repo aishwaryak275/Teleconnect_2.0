@@ -28,6 +28,18 @@ export class UsageService {
     return this.http.post<any>(`${this.base}/createRecord`, req);
   }
 
+  // ── Admin-wide (all subscribers) ──────────────────────────────────────────────
+
+  /** All usage records across every subscriber line (admin usage view). */
+  getAllRecords(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/allRecords`);
+  }
+
+  /** All usage summaries across every subscriber line (admin usage view). */
+  getAllSummaries(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/allSummaries`);
+  }
+
   // ── Records ──────────────────────────────────────────────────────────────────
 
   getRecordsByLine(lineId: number): Observable<any> {

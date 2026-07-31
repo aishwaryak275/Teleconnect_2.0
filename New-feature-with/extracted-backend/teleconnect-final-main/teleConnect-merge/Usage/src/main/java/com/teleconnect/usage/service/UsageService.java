@@ -159,6 +159,15 @@ public class UsageService {
         return records.stream().map(this::toRecordDTO).collect(Collectors.toList());
     }
 
+    // ALL RECORDS / SUMMARIES — admin-wide usage view across every subscriber line.
+    public List<UsageRecordResponse> getAllRecords() {
+        return recordRepo.findAll().stream().map(this::toRecordDTO).collect(Collectors.toList());
+    }
+
+    public List<UsageSummaryResponse> getAllSummaries() {
+        return summaryRepo.findAll().stream().map(this::toSummaryDTO).collect(Collectors.toList());
+    }
+
     // 3. FETCH RECORDS BY BILLING CYCLE
     public List<UsageRecordResponse> fetchRecordsByCycle(
             Long lineId, Long billingCycleId) {

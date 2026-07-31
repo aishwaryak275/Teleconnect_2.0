@@ -122,7 +122,8 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
         this.allTickets = (data ?? []).map((t: any) => ({
           ...t,
           id: t.id ?? t.ticketId,
-          status: this.toStatusWord(t.status)
+          status: this.toStatusWord(t.status),
+          slaDeadline: t.slaDeadline ?? this.computeSlaDeadline(t.raisedDate, t.priority)
         }));
         this.updateRegionMetrics();
         this.loadEscalatedQueue();
@@ -135,8 +136,8 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
   loadStaff(): void {
     // Demo staff members for ticket assignment
     this.staffMembers = [
-      { id: 4, name: 'Ned Network', email: 'networkops@teleconnect.com' },
-      { id: 2, name: 'Alice Agent', email: 'agent@teleconnect.com' }
+      { id: 4, name: 'Ned Network Engineer 1', email: 'networkops@teleconnect.com' },
+      { id: 2, name: 'Ned Network Engineer 2', email: 'agent@teleconnect.com' }
     ];
   }
 
@@ -297,12 +298,27 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** True if the assigned engineer id is one of the known staff options. */
+  isKnownStaff(id: number): boolean {
+    return (this.staffMembers ?? []).some(s => s.id === id);
+  }
+
   assignTicket(ticketId: number, engineerId: number): void {
+    const ticket = this.allTickets.find(t => t.id === ticketId);
+    const shouldStart = !ticket || ticket.status === 'Open';
     this.ticketService.assignTicket(ticketId, engineerId).subscribe({
       next: () => {
         this.iamService.recordAudit('TICKET_ASSIGNED', 'NETOPS');
-        this.toastService.success(`Ticket #${ticketId} assigned.`);
-        this.loadTickets();
+        if (shouldStart) {
+          // Assigning an open ticket starts work on it → move to the InProgress column.
+          this.ticketService.updateFaultStatus(ticketId, this.statusCode['InProgress']).subscribe({
+            next: () => { this.toastService.success(`Ticket #${ticketId} assigned — moved to In Progress.`); this.loadTickets(); },
+            error: () => { this.toastService.success(`Ticket #${ticketId} assigned.`); this.loadTickets(); }
+          });
+        } else {
+          this.toastService.success(`Ticket #${ticketId} assigned.`);
+          this.loadTickets();
+        }
       },
       error: () => this.toastService.error('Assign operation failed.')
     });
@@ -311,6 +327,24 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
   // ==========================================
   // SLA Timers & countdown formatting
   // ==========================================
+  /** SLA target hours by priority (accepts word or single-letter code). */
+  private slaHours(priority: string): number {
+    const p = (priority ?? '').toString().toUpperCase();
+    if (p === 'CRITICAL' || p === 'C') return 4;
+    if (p === 'HIGH'     || p === 'H') return 8;
+    if (p === 'MEDIUM'   || p === 'M') return 24;
+    if (p === 'LOW'      || p === 'L') return 72;
+    return 24;
+  }
+
+  /** Deadline = raisedDate + SLA hours for the ticket's priority. */
+  private computeSlaDeadline(raisedDate: string, priority: string): string | null {
+    if (!raisedDate) return null;
+    const base = new Date(raisedDate).getTime();
+    if (isNaN(base)) return null;
+    return new Date(base + this.slaHours(priority) * 60 * 60 * 1000).toISOString();
+  }
+
   getSlaTimeRemaining(deadlineStr: string): string {
     const deadline = new Date(deadlineStr).getTime();
     const now = this.currentTime.getTime();

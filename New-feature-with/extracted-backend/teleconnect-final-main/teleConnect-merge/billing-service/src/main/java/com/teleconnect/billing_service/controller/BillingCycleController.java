@@ -79,7 +79,7 @@ public class BillingCycleController {
      * NOTE: Must be declared before /{cycleId} to avoid "account" being parsed as Long.
      */
     @GetMapping("/account/{accountId}")
-    @PreAuthorize("hasAuthority('BILLING_CYCLE')")
+    @PreAuthorize("hasAnyAuthority('BILLING_CYCLE','VIEW_INVOICE')")
     public ResponseEntity<List<BillingCycleResponse>> getCyclesByAccount(
             @PathVariable Long accountId,
             @RequestParam(required = false) BillingCycleStatus status,

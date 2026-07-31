@@ -332,9 +332,13 @@
                   <svg *ngIf="!isPlanCompatible(p)" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                   </svg>
-                  <svg *ngIf="isPlanCompatible(p)" class="w-5 h-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                  </svg>
+                  <button *ngIf="isPlanCompatible(p)" (click)="openPlanDetails(p); $event.stopPropagation()"
+                    title="View plan details"
+                    class="text-primary-600 hover:text-primary-800 cursor-pointer p-0.5 rounded-md hover:bg-primary-50 transition">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </button>
                 </div>
 
                 <!-- Stats: validity, data, voice -->
@@ -357,6 +361,7 @@
                 <span class="inline-block text-[10px] font-semibold uppercase tracking-wider text-primary-700 bg-primary-50 border border-primary-100 px-2 py-0.5 rounded-full mb-4">
                   {{ p.name }}
                 </span>
+
               </div>
 
               <!-- CTA -->
@@ -385,6 +390,41 @@
           </div>
 
           <app-paginator *ngIf="filteredPlans().length > pageSize" [total]="filteredPlans().length" [page]="plansPage" [size]="pageSize" (pageChange)="plansPage = $event"></app-paginator>
+        </div>
+
+        <!-- Plan Details pop-up -->
+        <div *ngIf="detailsPlan" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" (click)="closePlanDetails()">
+          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" (click)="$event.stopPropagation()" [@scaleIn]>
+            <!-- Header -->
+            <div class="bg-gradient-to-br from-primary-700 to-primary-900 text-white px-6 py-5 flex items-start justify-between">
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-primary-200">{{ detailsPlan.type }} Plan</p>
+                <h3 class="text-xl font-extrabold mt-0.5">{{ detailsPlan.name }}</h3>
+              </div>
+              <div class="text-right">
+                <p class="text-2xl font-extrabold">₹{{ detailsPlan.planPrice }}</p>
+                <p class="text-[10px] text-primary-200">/cycle</p>
+              </div>
+            </div>
+            <!-- Body -->
+            <div class="p-6 divide-y divide-slate-100 text-sm">
+              <div class="flex items-center justify-between py-2.5"><span class="text-slate-500">Total data</span><span class="font-semibold text-slate-800">{{ detailsPlan.dataGb }} GB</span></div>
+              <div class="flex items-center justify-between py-2.5"><span class="text-slate-500">Daily data</span><span class="font-semibold text-slate-800">{{ getDataPerDay(detailsPlan) }}</span></div>
+              <div class="flex items-center justify-between py-2.5"><span class="text-slate-500">Voice</span><span class="font-semibold text-slate-800">{{ detailsPlan.voiceMinutes > 0 ? detailsPlan.voiceMinutes + ' Min' : 'Unlimited' }}</span></div>
+              <div class="flex items-center justify-between py-2.5"><span class="text-slate-500">SMS</span><span class="font-semibold text-slate-800">{{ detailsPlan.smsCount ? detailsPlan.smsCount + ' SMS' : '—' }}</span></div>
+              <div class="flex items-center justify-between py-2.5"><span class="text-slate-500">Validity</span><span class="font-semibold text-slate-800">{{ detailsPlan.validityDays }} Days</span></div>
+              <div class="flex items-center justify-between py-2.5"><span class="text-slate-500">Account type</span><span class="font-semibold text-slate-800">{{ detailsPlan.type }}</span></div>
+            </div>
+            <!-- Footer -->
+            <div class="px-6 pb-6 flex gap-3">
+              <button (click)="closePlanDetails()" class="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer transition">Close</button>
+              <button *ngIf="isPlanCompatible(detailsPlan) && !hasActivePlan"
+                (click)="closePlanDetails(); onSelectPlan(detailsPlan)"
+                class="flex-1 py-2.5 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl cursor-pointer transition">
+                Select Plan
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Add-Ons panel -->
@@ -559,6 +599,23 @@
           </div>
         </div>
 
+        <!-- Limit Status Panel -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <h3 class="text-base font-bold text-slate-800 tracking-tight">Limit Status Panel</h3>
+          <p class="text-xs text-slate-400 font-light mt-0.5 mb-5">Usage compared against stored plan limits (dataLimitMb / voiceLimitMin / smsLimit).</p>
+          <div class="flex flex-col gap-5">
+            <div *ngFor="let row of limitRows">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-sm font-bold text-slate-700">{{ row.label }} · {{ row.usedDisplay }} / {{ row.limitDisplay }} {{ row.unit }}</span>
+                <span class="text-sm font-semibold" [ngClass]="row.statusClass">{{ row.statusText }}</span>
+              </div>
+              <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500" [ngClass]="row.barClass" [style.width.%]="row.barWidth"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Chart line panel -->
         <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <h3 class="text-base font-bold text-slate-800 tracking-tight mb-6">Daily Usage History (Data Consumption)</h3>
@@ -601,30 +658,21 @@
                   <td class="px-6 py-4 font-bold text-slate-800">₹{{ inv.totalAmount }}</td>
                   <td class="px-6 py-4 text-slate-500 font-light">{{ inv.dueDate | date:'mediumDate' }}</td>
                   <td class="px-6 py-4">
-                    <span
-                      [class.bg-emerald-100]="inv.status === 'Paid'"
-                      [class.text-emerald-700]="inv.status === 'Paid'"
-                      [class.bg-amber-100]="inv.status === 'Sent' || inv.status === 'Generated'"
-                      [class.text-amber-700]="inv.status === 'Sent' || inv.status === 'Generated'"
-                      [class.bg-rose-100]="inv.status === 'Overdue'"
-                      [class.text-rose-700]="inv.status === 'Overdue'"
-                      [class.bg-purple-100]="inv.status === 'Disputed'"
-                      [class.text-purple-700]="inv.status === 'Disputed'"
-                      class="px-2.5 py-0.5 rounded-full text-xs font-semibold"
-                    >
+                    <span [ngClass]="invoiceBadgeClass(inv.status)" class="px-2.5 py-0.5 rounded-full text-xs font-semibold">
                       {{ inv.status }}
                     </span>
                   </td>
                   <td class="px-6 py-4 text-right" (click)="$event.stopPropagation()">
                     <button
-                      *ngIf="inv.status !== 'Paid'"
                       (click)="payInvoice(inv)"
-                      class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg shadow-sm transition mr-2 cursor-pointer"
+                      [disabled]="isInvoicePaid(inv)"
+                      [title]="isInvoicePaid(inv) ? 'This invoice is already paid' : 'Pay this invoice'"
+                      class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg shadow-sm transition mr-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-500"
                     >
-                      Pay Now
+                      {{ isInvoicePaid(inv) ? 'Paid' : 'Pay Now' }}
                     </button>
                     <button
-                      *ngIf="inv.status !== 'Paid' && inv.status !== 'Disputed'"
+                      *ngIf="!isInvoicePaid(inv) && !isInvoiceDisputed(inv)"
                       (click)="openDisputeModal(inv)"
                       class="px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg shadow-sm transition mr-2 cursor-pointer"
                     >

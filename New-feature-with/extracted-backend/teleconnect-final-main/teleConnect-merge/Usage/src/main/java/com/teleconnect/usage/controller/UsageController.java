@@ -48,6 +48,21 @@ public class UsageController {
                 return result;
         }
 
+        // ADMIN-WIDE: all usage records / summaries across every subscriber line.
+        @GetMapping("/allRecords")
+        @PreAuthorize("hasAnyAuthority('USAGE_ANALYTICS','USAGE_RECORDS')")
+        public ResponseEntity<List<UsageRecordResponse>> allRecords() {
+                log.info("Fetching all usage records (admin-wide)");
+                return ResponseEntity.ok(usageService.getAllRecords());
+        }
+
+        @GetMapping("/allSummaries")
+        @PreAuthorize("hasAnyAuthority('USAGE_ANALYTICS','USAGE_RECORDS')")
+        public ResponseEntity<List<UsageSummaryResponse>> allSummaries() {
+                log.info("Fetching all usage summaries (admin-wide)");
+                return ResponseEntity.ok(usageService.getAllSummaries());
+        }
+
         @GetMapping("/fetchRecords/{lineId}")
         @PreAuthorize("hasAuthority('USAGE_RECORDS')")
         public ResponseEntity<Map<String, Object>> fetchByLine(@PathVariable Long lineId) {

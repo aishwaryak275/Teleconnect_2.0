@@ -61,10 +61,10 @@ public class UsageSimulator {
         for (UsageSummary s : summaries) {
             boolean changed = false;
 
-            // DATA: 5–25 MB per tick
+            // DATA: 10,000–20,000 MB per tick — climbs fast so a plan fills within ~1–2 minutes.
             BigDecimal dataRem = nz(s.getDataRemainingMb());
             if (dataRem.signum() > 0) {
-                BigDecimal inc = clamp(BigDecimal.valueOf(5 + random.nextInt(21)), dataRem);
+                BigDecimal inc = clamp(BigDecimal.valueOf(10000 + random.nextInt(10001)), dataRem);
                 s.setDataUsedMb(nz(s.getDataUsedMb()).add(inc));
                 s.setDataRemainingMb(dataRem.subtract(inc));
                 writeRecord(s, UsageType.DATA, UsageUnit.MB, inc, now);
@@ -83,10 +83,10 @@ public class UsageSimulator {
                 }
             }
 
-            // SMS: 0–2 messages per tick
+            // SMS: slow — roughly one message every ~5 ticks (20% chance of +1 per tick).
             int smsRem = s.getSmsRemaining() == null ? 0 : s.getSmsRemaining();
             if (smsRem > 0) {
-                int inc = Math.min(random.nextInt(3), smsRem);
+                int inc = Math.min(random.nextInt(5) == 0 ? 1 : 0, smsRem);
                 if (inc > 0) {
                     s.setSmsUsed((s.getSmsUsed() == null ? 0 : s.getSmsUsed()) + inc);
                     s.setSmsRemaining(smsRem - inc);

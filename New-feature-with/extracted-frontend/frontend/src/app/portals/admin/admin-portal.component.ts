@@ -5,6 +5,7 @@ import { AuthService, User } from '../../core/services/auth.service';
 import { AccountService } from '../../core/services/account.service';
 import { PlanService } from '../../core/services/plan.service';
 import { BillingService } from '../../core/services/billing.service';
+import { UsageService } from '../../core/services/usage.service';
 import { IamService } from '../../core/services/iam.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -133,6 +134,7 @@ export class AdminPortalComponent implements OnInit {
     private accountService: AccountService,
     private planService: PlanService,
     private billingService: BillingService,
+    private usageService: UsageService,
     private iamService: IamService,
     public notificationService: NotificationService,
     private toastService: ToastService,
@@ -216,6 +218,81 @@ export class AdminPortalComponent implements OnInit {
     if (tab === 'users') this.loadIamUsers();
     if (tab === 'auditLogs') this.loadAuditLogs();
     if (tab === 'customer360') { this.search360Query = ''; this.selected360Account = null; this.search360Results = []; }
+    if (tab === 'usage') this.loadAllUsage();
+  }
+
+  // ── Usage Tracking (admin-wide) ────────────────────────────────────────────────
+  usageRecords: any[] = [];
+  usageSummaries: any[] = [];
+  usageLoading = false;
+  usageTypeFilter = 'ALL';
+  usageFrom = '';
+  usageTo = '';
+  usagePage = 1;
+
+  loadAllUsage(): void {
+    this.usageLoading = true;
+    this.usageService.getAllRecords().subscribe({
+      next: (recs) => { this.usageRecords = Array.isArray(recs) ? recs : []; this.usageLoading = false; },
+      error: () => { this.usageRecords = []; this.usageLoading = false; }
+    });
+    this.usageService.getAllSummaries().subscribe({
+      next: (sums) => { this.usageSummaries = Array.isArray(sums) ? sums : []; },
+      error: () => { this.usageSummaries = []; }
+    });
+  }
+
+  resetUsageFilters(): void {
+    this.usageTypeFilter = 'ALL';
+    this.usageFrom = '';
+    this.usageTo = '';
+  }
+
+  /** Records after applying the type + date-range filters. */
+  filteredUsageRecords(): any[] {
+    const type = this.usageTypeFilter;
+    const from = this.usageFrom ? new Date(this.usageFrom + 'T00:00:00').getTime() : null;
+    const to = this.usageTo ? new Date(this.usageTo + 'T23:59:59').getTime() : null;
+    return (this.usageRecords ?? [])
+      .filter(r => type === 'ALL' || (r?.usageType ?? '').toString().toUpperCase() === type)
+      .filter(r => {
+        if (!from && !to) return true;
+        const t = new Date(r?.usageDate ?? 0).getTime();
+        if (from && t < from) return false;
+        if (to && t > to) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b?.usageDate ?? 0).getTime() - new Date(a?.usageDate ?? 0).getTime());
+  }
+
+  /** Aggregate totals across all summaries for the header tiles. */
+  get usageTotals(): { dataMb: number; voiceMin: number; sms: number; lines: number } {
+    const s = this.usageSummaries ?? [];
+    return {
+      dataMb: s.reduce((n, x) => n + Number(x?.dataUsedMb ?? 0), 0),
+      voiceMin: s.reduce((n, x) => n + Number(x?.voiceUsedMin ?? 0), 0),
+      sms: s.reduce((n, x) => n + Number(x?.smsUsed ?? 0), 0),
+      lines: new Set(s.map(x => x?.lineId)).size
+    };
+  }
+
+  /** Display a usage quantity with a sensible unit. */
+  usageQtyDisplay(r: any): string {
+    const t = (r?.usageType ?? '').toString().toUpperCase();
+    const q = Number(r?.quantity ?? 0);
+    if (t === 'DATA') return q >= 1024 ? `${(q / 1024).toFixed(2)} GB` : `${q.toFixed(0)} MB`;
+    if (t === 'VOICE') return `${q.toFixed(0)} min`;
+    if (t === 'SMS') return `${q.toFixed(0)} SMS`;
+    return `${q}`;
+  }
+
+  usageTypeDot(type: string): string {
+    switch ((type ?? '').toString().toUpperCase()) {
+      case 'DATA':  return 'bg-sky-500';
+      case 'VOICE': return 'bg-emerald-500';
+      case 'SMS':   return 'bg-amber-500';
+      default:      return 'bg-slate-400';
+    }
   }
 
   setUserManagerTab(sub: string): void {

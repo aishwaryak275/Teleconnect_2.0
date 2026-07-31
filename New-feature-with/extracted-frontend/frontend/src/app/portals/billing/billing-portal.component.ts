@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, effect, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, effect, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Chart } from 'chart.js/auto';
@@ -62,7 +62,7 @@ interface Dispute {
   styleUrls: ['./billing-portal.component.css'],
   animations: [fadeInUp, staggerFadeIn, scaleIn]
 })
-export class BillingPortalComponent implements OnInit {
+export class BillingPortalComponent implements OnInit, OnDestroy {
   // ── Layout / session ──────────────────────────────────────────────────────
   section = signal<Section>('invoices');
   isNotificationOpen = signal<boolean>(false);
@@ -334,6 +334,19 @@ export class BillingPortalComponent implements OnInit {
     this.openKebabId = null;
     this.openReportKebabId = null;
     if (s === 'catalog') this.loadCatalog();
+    if (s === 'reports') {
+      this.recomputeInvoiceStatusBreakdown();
+    } else {
+      // Tear down responsive charts when leaving Reports so no orphaned
+      // ResizeObserver keeps firing after the canvas is removed.
+      this.billingChart?.destroy(); this.billingChart = null;
+      this.disputeTrendChart?.destroy(); this.disputeTrendChart = null;
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.billingChart?.destroy(); this.billingChart = null;
+    this.disputeTrendChart?.destroy(); this.disputeTrendChart = null;
   }
 
   loadCatalog(): void {
@@ -800,24 +813,26 @@ export class BillingPortalComponent implements OnInit {
   // ============================================================================
   // REPORTS
   // ============================================================================
-  get reportKpis() {
-    return {
-      totalBilled: 289000,
-      collected: 256000,
-      collectionRate: 88.6,
-      outstanding: 33000,
-      pendingPct: 11.4,
-      disputeRate: 6.0,
-      disputeRateDelta: 1.2,
-      avgInvoice: 28900
-    };
-  }
+  // Stable objects — NOT getters — so change detection doesn't allocate a new array/object
+  // every cycle next to the responsive Reports charts (that caused a resize→CD→reflow freeze).
+  readonly reportKpis = {
+    totalBilled: 289000,
+    collected: 256000,
+    collectionRate: 88.6,
+    outstanding: 33000,
+    pendingPct: 11.4,
+    disputeRate: 6.0,
+    disputeRateDelta: 1.2,
+    avgInvoice: 28900
+  };
 
-  get invoiceStatusBreakdown() {
+  invoiceStatusBreakdown: any[] = [];
+
+  private recomputeInvoiceStatusBreakdown(): void {
     const total = this.invoices.length || 1;
     const count = (s: Invoice['status']) => this.invoices.filter(i => i.status === s).length;
     const pct = (n: number) => Math.round((n / total) * 100);
-    return [
+    this.invoiceStatusBreakdown = [
       { label: 'Paid',     count: count('Paid'),     pct: pct(count('Paid')),     bar: 'bg-emerald-500', text: 'text-emerald-600' },
       { label: 'Open',     count: count('Open'),     pct: pct(count('Open')),     bar: 'bg-blue-500',    text: 'text-blue-600' },
       { label: 'Overdue',  count: count('Overdue'),  pct: pct(count('Overdue')),  bar: 'bg-rose-500',    text: 'text-rose-600' },

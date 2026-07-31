@@ -237,13 +237,14 @@
               <!-- Assignment selection dropdown -->
               <div class="mb-3 pt-2 border-t border-slate-100">
                 <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Assignee</label>
-                <select 
-                  [ngModel]="t.assignedTo?.id || ''"
-                  (ngModelChange)="assignTicket(t.id, $event)"
+                <select
+                  [ngModel]="t.assignedToId ?? null"
+                  (ngModelChange)="$event && assignTicket(t.id, $event)"
                   class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] focus:outline-none"
                 >
-                  <option value="">Unassigned</option>
-                  <option *ngFor="let s of staffMembers" [value]="s.id">{{ s.name }}</option>
+                  <option [ngValue]="null">Unassigned</option>
+                  <option *ngFor="let s of staffMembers" [ngValue]="s.id">{{ s.name }}</option>
+                  <option *ngIf="t.assignedToId && !isKnownStaff(t.assignedToId)" [ngValue]="t.assignedToId">Engineer #{{ t.assignedToId }}</option>
                 </select>
               </div>
 
@@ -324,7 +325,7 @@
                 <td class="px-6 py-4 font-semibold text-slate-700">#T-{{ t.id }}</td>
                 <td class="px-6 py-4 font-bold text-slate-800">{{ t.faultType }}</td>
                 <td class="px-6 py-4 font-medium text-slate-600">{{ t.priority }}</td>
-                <td class="px-6 py-4 text-slate-500 font-light">{{ t.slaDeadline | date:'medium' }}</td>
+                <td class="px-6 py-4 text-slate-500 font-light">{{ t.slaDeadline ? (t.slaDeadline | date:'d MMM y, HH:mm') : '—' }}</td>
                 <td class="px-6 py-4">
                   <!-- Timer states -->
                   <span 
