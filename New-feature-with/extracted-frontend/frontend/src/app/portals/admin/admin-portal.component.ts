@@ -680,6 +680,7 @@ export class AdminPortalComponent implements OnInit {
         this.createdAccountId = res?.accountId ?? res?.id ?? null;
         this.showAccountCreatedSuccessModal = true;
         this.iamService.recordAudit('SUBSCRIBER_ACCOUNT_CREATED', 'SUBSCRIBER');
+        this.pushNotification(this.selectedSubscriberUser?.userId, 'Welcome to TeleConnect — your subscriber account has been created.', 'COMPLIANCE');
         this.enrichUsersWithAccountStatus();
         this.toastService.success('Subscriber account created successfully.');
       },
@@ -688,6 +689,12 @@ export class AdminPortalComponent implements OnInit {
         this.toastService.error(err.error?.message ?? 'Failed to create subscriber account.');
       }
     });
+  }
+
+  /** Fire-and-forget: raise a notification for the subscriber (recipient userId). */
+  private pushNotification(userId: number | null | undefined, message: string, category: string): void {
+    if (!userId) return;
+    this.notificationService.createNotification({ userId, message, category }).subscribe({ next: () => {}, error: () => {} });
   }
 
   closeSuccessModal(): void {
@@ -731,6 +738,7 @@ export class AdminPortalComponent implements OnInit {
       next: () => {
         this.isActivatingSim = false;
         this.iamService.recordAudit('SIM_LINE_ACTIVATED', 'SUBSCRIBER');
+        this.pushNotification(this.selectedSubscriberUser?.userId ?? this.selected360Account?.subscriberId, `A new SIM line (${payload.msisdn}) has been added to your account.`, 'PLAN');
         this.toastService.success(`SIM line activated successfully for Account #${this.createdAccountId}.`);
         this.closeAddSimModal();
         if (this.selected360Account) {
@@ -874,6 +882,11 @@ export class AdminPortalComponent implements OnInit {
     this.accountService.updateKycStatus(accountId, status).subscribe({
       next: () => {
         this.iamService.recordAudit('KYC_STATUS_UPDATED', 'SUBSCRIBER');
+        const uid = this.selected360Account?.subscriberId ?? this.selected360Account?.subscriber?.userId;
+        const msg = status === 'Verified' ? 'Your KYC has been verified.'
+          : (status === 'Expired' ? 'Your KYC expired — please re-submit documents.'
+          : `Your KYC status is now ${status}.`);
+        this.pushNotification(uid, msg, 'COMPLIANCE');
         this.toastService.success(`KYC status updated to ${status}.`);
         this.loadAccount360Profile(accountId);
       },
@@ -885,6 +898,11 @@ export class AdminPortalComponent implements OnInit {
     this.accountService.updateAccountStatus(accountId, status).subscribe({
       next: () => {
         this.iamService.recordAudit('ACCOUNT_STATUS_UPDATED', 'SUBSCRIBER');
+        const uid = this.selected360Account?.subscriberId ?? this.selected360Account?.subscriber?.userId;
+        const msg = status === 'Suspended' ? 'Your account has been suspended. Please contact support.'
+          : (status === 'Active' ? 'Your account is active again.'
+          : `Your account status is now ${status}.`);
+        this.pushNotification(uid, msg, 'COMPLIANCE');
         this.toastService.success(`Account status updated to ${status}.`);
         this.loadAccount360Profile(accountId);
       },
@@ -1044,6 +1062,7 @@ export class AdminPortalComponent implements OnInit {
       this.planService.createSubscription({ lineId, planId, addOnId, activationDate, expiryDate, renewalType: 'AutoRenew', status: 'A' }).subscribe({
         next: () => {
           this.iamService.recordAudit(this.isChangePlan() ? 'PLAN_CHANGED' : 'PLAN_PROVISIONED', 'ADMIN');
+          this.pushNotification(this.selected360Account?.subscriberId ?? this.selected360Account?.subscriber?.userId, `Your plan "${planName}"${addOnId ? ' with an add-on' : ''} is now active.`, 'PLAN');
           this.toastService.success(this.isChangePlan() ? `Plan changed to "${planName}" successfully!` : `Plan "${planName}" provisioned successfully!`);
           if (withInvoice && accountId) this.autoCreateInvoice360(accountId, planPrice, addOnPrice, activationDate, expiryDate);
           this.closePlanProvision360();

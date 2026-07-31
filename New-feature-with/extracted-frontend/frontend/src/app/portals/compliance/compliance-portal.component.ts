@@ -219,10 +219,24 @@ export class CompliancePortalComponent implements OnInit {
   // ==========================================
   // KYC Verification Workflows
   // ==========================================
+  /** Resolve the subscriber (recipient) userId for a given account from the loaded list. */
+  private subscriberIdForAccount(accountId: number): number | null {
+    const acc = (this.accounts ?? []).find((a: any) => a.accountId === accountId)
+      ?? (this.nonCompliantAccounts ?? []).find((a: any) => a.accountId === accountId);
+    return acc?.subscriberId ?? null;
+  }
+
+  /** Fire-and-forget: raise a notification for the subscriber (recipient userId). */
+  private pushNotification(userId: number | null | undefined, message: string, category: string): void {
+    if (!userId) return;
+    this.notificationService.createNotification({ userId, message, category }).subscribe({ next: () => {}, error: () => {} });
+  }
+
   verifyKyc(accountId: number): void {
     this.accountService.updateKycStatus(accountId, 'Verified').subscribe({
       next: () => {
         this.iamService.recordAudit('KYC_VERIFIED', 'COMPLIANCE');
+        this.pushNotification(this.subscriberIdForAccount(accountId), 'Your KYC has been verified.', 'COMPLIANCE');
         this.toastService.success(`Account #${accountId} KYC status updated to Verified.`);
         this.loadAccounts();
       },
@@ -234,6 +248,7 @@ export class CompliancePortalComponent implements OnInit {
     this.accountService.updateKycStatus(accountId, 'Expired').subscribe({
       next: () => {
         this.iamService.recordAudit('KYC_EXPIRED', 'COMPLIANCE');
+        this.pushNotification(this.subscriberIdForAccount(accountId), 'Your KYC expired — please re-submit documents.', 'COMPLIANCE');
         this.toastService.success(`Account #${accountId} KYC status updated to Expired.`);
         this.loadAccounts();
       },

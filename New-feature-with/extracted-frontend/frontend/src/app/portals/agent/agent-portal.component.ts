@@ -540,6 +540,11 @@ export class AgentPortalComponent implements OnInit {
     this.accountService.updateAccountStatus(accountId, status).subscribe({
       next: () => {
         this.iamService.recordAudit('ACCOUNT_STATUS_UPDATED', 'SUBSCRIBER');
+        const uid = this.selectedAccount360?.subscriberId ?? this.selectedAccount360?.subscriber?.userId;
+        const msg = status === 'Suspended' ? 'Your account has been suspended. Please contact support.'
+          : (status === 'Active' ? 'Your account is active again.'
+          : `Your account status is now ${status}.`);
+        this.pushNotification(uid, msg, 'COMPLIANCE');
         this.toastService.success(`Account #${accountId} status updated to ${status}.`);
         if (this.selectedAccount360?.accountId === accountId) {
           this.selectAccount(accountId);
@@ -553,6 +558,11 @@ export class AgentPortalComponent implements OnInit {
     this.accountService.updateKycStatus(accountId, kycStatus).subscribe({
       next: () => {
         this.iamService.recordAudit('ACCOUNT_KYC_UPDATED', 'SUBSCRIBER');
+        const uid = this.selectedAccount360?.subscriberId ?? this.selectedAccount360?.subscriber?.userId;
+        const msg = kycStatus === 'Verified' ? 'Your KYC has been verified.'
+          : (kycStatus === 'Expired' ? 'Your KYC expired — please re-submit documents.'
+          : `Your KYC status is now ${kycStatus}.`);
+        this.pushNotification(uid, msg, 'COMPLIANCE');
         this.toastService.success(`Account #${accountId} KYC status updated to ${kycStatus}.`);
         if (this.selectedAccount360?.accountId === accountId) {
           this.selectAccount(accountId);
@@ -935,6 +945,7 @@ export class AgentPortalComponent implements OnInit {
     this.planService.createSubscription({ lineId, planId, addOnId, activationDate, expiryDate, renewalType: 'AutoRenew', status: 'A' }).subscribe({
       next: () => {
         this.iamService.recordAudit('PLAN_PROVISIONED', 'AGENT');
+        this.pushNotification(this.selectedAccount360?.subscriberId ?? this.selectedAccount360?.subscriber?.userId, `Your plan "${this.provisionSelectedPlan.name}"${addOnId ? ' with an add-on' : ''} is now active.`, 'PLAN');
         this.toastService.success(`Plan "${this.provisionSelectedPlan.name}" provisioned successfully!`);
         if (accountId) this.autoCreateInvoice(accountId, planPrice, addOnPrice, activationDate, expiryDate);
         this.closePlanProvision();
@@ -976,6 +987,7 @@ export class AgentPortalComponent implements OnInit {
         this.createdAccountId = res?.accountId ?? res?.id ?? null;
         this.showAccountCreatedSuccessModal = true;
         this.iamService.recordAudit('SUBSCRIBER_ACCOUNT_CREATED', 'SUBSCRIBER');
+        this.pushNotification(this.selectedSubscriberUser?.userId, 'Welcome to TeleConnect — your subscriber account has been created.', 'COMPLIANCE');
         this.enrichUsersWithAccountStatus();
         this.toastService.success('Subscriber account created successfully.');
       },
@@ -984,6 +996,12 @@ export class AgentPortalComponent implements OnInit {
         this.toastService.error(err.error?.message ?? 'Failed to create subscriber account.');
       }
     });
+  }
+
+  /** Fire-and-forget: raise a notification for the subscriber (recipient userId). */
+  private pushNotification(userId: number | null | undefined, message: string, category: string): void {
+    if (!userId) return;
+    this.notificationService.createNotification({ userId, message, category }).subscribe({ next: () => {}, error: () => {} });
   }
 
   closeSuccessModal(): void {
@@ -1027,6 +1045,7 @@ export class AgentPortalComponent implements OnInit {
       next: () => {
         this.isActivatingSim = false;
         this.iamService.recordAudit('SIM_LINE_ACTIVATED', 'SUBSCRIBER');
+        this.pushNotification(this.selectedSubscriberUser?.userId ?? this.selectedAccount360?.subscriberId, `A new SIM line (${payload.msisdn}) has been added to your account.`, 'PLAN');
         this.toastService.success(`SIM line activated successfully for Account #${this.createdAccountId}.`);
         this.closeAddSimModal();
         if (this.selectedAccount360) {

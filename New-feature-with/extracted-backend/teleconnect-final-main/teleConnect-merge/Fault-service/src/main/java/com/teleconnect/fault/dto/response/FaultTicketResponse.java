@@ -12,6 +12,7 @@ public class FaultTicketResponse {
     private String description;
     private String priority;
     private LocalDate raisedDate;
+    private LocalDate dueDate;
     private LocalDate resolvedDate;
     private Integer assignedToId;
     private String status;

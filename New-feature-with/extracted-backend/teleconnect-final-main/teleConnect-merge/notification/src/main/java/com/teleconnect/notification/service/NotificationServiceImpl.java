@@ -94,6 +94,28 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    public NotificationResponse createIfNew(Long userId, String message, NotificationCategory category) {
+        // Check if notification with same userId, message, and category already exists
+        List<Notification> existing = repository.findByUserIdAndCategory(userId, category);
+        for (Notification n : existing) {
+            if (message.equals(n.getMessage())) {
+                log.debug("Notification already exists for userId={}, category={}", userId, category);
+                return map(n);
+            }
+        }
+        // Create new notification if it doesn't exist
+        Notification notification = new Notification();
+        notification.setUserId(userId);
+        notification.setMessage(message);
+        notification.setCategory(category);
+        notification.setStatus(NotificationStatus.UNREAD);
+        notification.setCreatedDate(LocalDateTime.now());
+        Notification saved = repository.save(notification);
+        log.info("Created new notification for userId={}, category={}", userId, category);
+        return map(saved);
+    }
+
+    @Override
     public String markAsRead(Long notificationId) {
 
         Notification notification =

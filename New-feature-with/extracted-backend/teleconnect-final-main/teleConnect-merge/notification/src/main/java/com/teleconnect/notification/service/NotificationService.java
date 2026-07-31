@@ -26,6 +26,8 @@ public interface NotificationService {
 
     NotificationSummaryResponse getUnreadCount(Long userId);
 
+    NotificationResponse createIfNew(Long userId, String message, NotificationCategory category);
+
     String markAsRead(Long notificationId);
 
     String dismissNotification(Long notificationId);

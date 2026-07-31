@@ -42,6 +42,11 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
   isProfileDropdownOpen = false;
   isNewConnModalOpen = false;
 
+  // Notification Center
+  notifCat = signal<string>('ALL');
+  notifStatus = signal<string>('ALL');
+  readonly notifCategories = ['ALL', 'USAGE', 'BILLING', 'FAULT', 'PLAN', 'COMPLIANCE'];
+
   // User details
   user!: User;
   account360: any = null;
@@ -401,10 +406,121 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     this.isSidebarCollapsed.set(!this.isSidebarCollapsed());
   }
 
-  toggleNotifications(): void {
+  toggleNotifications(event?: Event): void {
+    // Stop the bell click from bubbling to the document:click handler, which would
+    // immediately re-close the panel.
+    event?.stopPropagation();
     this.isNotificationOpen.set(!this.isNotificationOpen());
     if (this.isNotificationOpen()) {
       this.notificationService.refreshNotifications();
+    }
+  }
+
+  /** Bell dropdown shows only the 3 most recent (non-dismissed) alerts. */
+  topNotifications(): any[] {
+    return this.recentNotifications().slice(0, 3);
+  }
+
+  /** "View all notifications" → open the full Notifications tab. */
+  openAllNotifications(): void {
+    this.isNotificationOpen.set(false);
+    this.setTab('notifications');
+  }
+
+  /** Small glyph per category for the bell tiles. */
+  notifIcon(cat: string): string {
+    switch ((cat ?? '').toString().toUpperCase()) {
+      case 'USAGE':      return '▤';
+      case 'BILLING':    return '₹';
+      case 'FAULT':      return '!';
+      case 'PLAN':       return '◆';
+      case 'COMPLIANCE': return '✓';
+      default:           return '•';
+    }
+  }
+
+  /** Category-coloured unread dot. */
+  notifDot(cat: string): string {
+    switch ((cat ?? '').toString().toUpperCase()) {
+      case 'USAGE':      return 'bg-sky-500';
+      case 'BILLING':    return 'bg-amber-500';
+      case 'FAULT':      return 'bg-rose-500';
+      case 'PLAN':       return 'bg-indigo-500';
+      case 'COMPLIANCE': return 'bg-violet-500';
+      default:           return 'bg-slate-400';
+    }
+  }
+
+  /** Relative timestamp: "just now", "4m ago", "1h ago", "Yesterday", "3d ago". */
+  timeAgo(dateStr: string): string {
+    if (!dateStr) return '';
+    const then = new Date(dateStr).getTime();
+    if (isNaN(then)) return '';
+    const m = Math.floor((Date.now() - then) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    if (d === 1) return 'Yesterday';
+    if (d < 7) return `${d}d ago`;
+    return new Date(dateStr).toLocaleDateString();
+  }
+
+  // ── Notification Center ─────────────────────────────────────────────────────
+  setNotifCat(cat: string): void { this.notifCat.set(cat); }
+  setNotifStatus(status: string): void { this.notifStatus.set(status); }
+
+  /** All notifications for this subscriber, minus dismissed, with the active filters applied. */
+  filteredNotifications(): any[] {
+    const cat = this.notifCat();
+    const st = this.notifStatus();
+    return this.notificationService.notifications()
+      .filter(n => (n?.status ?? '').toString().toUpperCase() !== 'DISMISSED')
+      .filter(n => cat === 'ALL' || (n?.category ?? '').toString().toUpperCase() === cat)
+      .filter(n => st === 'ALL' || (n?.status ?? '').toString().toUpperCase() === st);
+  }
+
+  /** Bell dropdown list — all non-dismissed notifications, ignoring the page filters. */
+  recentNotifications(): any[] {
+    return this.notificationService.notifications()
+      .filter(n => (n?.status ?? '').toString().toUpperCase() !== 'DISMISSED');
+  }
+
+  isUnread(n: any): boolean {
+    return (n?.status ?? '').toString().toUpperCase() === 'UNREAD';
+  }
+
+  markNotifRead(n: any): void {
+    if (this.isUnread(n)) this.notificationService.markAsRead(n.notificationId).subscribe();
+  }
+
+  dismissNotif(n: any): void {
+    this.notificationService.dismiss(n.notificationId).subscribe();
+  }
+
+  markAllNotifRead(): void {
+    this.notificationService.markAllAsRead().subscribe();
+  }
+
+  /** Fire-and-forget: raise a notification for a subscriber (recipient userId). */
+  private pushNotification(userId: number | null | undefined, message: string, category: string): void {
+    if (!userId) return;
+    this.notificationService.createNotification({ userId, message, category }).subscribe({
+      next: () => this.notificationService.refreshNotifications(),
+      error: () => {}
+    });
+  }
+
+  /** Tailwind classes for a category badge/icon. */
+  notifBadgeClass(cat: string): string {
+    switch ((cat ?? '').toString().toUpperCase()) {
+      case 'USAGE':      return 'bg-sky-100 text-sky-700';
+      case 'BILLING':    return 'bg-amber-100 text-amber-700';
+      case 'FAULT':      return 'bg-rose-100 text-rose-700';
+      case 'PLAN':       return 'bg-indigo-100 text-indigo-700';
+      case 'COMPLIANCE': return 'bg-violet-100 text-violet-700';
+      default:           return 'bg-slate-100 text-slate-600';
     }
   }
 
@@ -688,6 +804,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
     }).subscribe({
       next: () => {
         this.iamService.recordAudit('INVOICE_PAID', 'BILLING');
+        this.pushNotification(this.user?.id, `Payment of ₹${inv.totalAmount} received — invoice #${inv.invoiceId} is now paid.`, 'BILLING');
         this.toastService.success('Payment successful! Thank you.');
         this.loadInvoices();
       },
@@ -927,6 +1044,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
       next: () => {
         this.isSubmittingRequest = false;
         this.iamService.recordAudit('SERVICE_REQUEST_SUBMITTED', 'SUBSCRIBER');
+        this.pushNotification(this.user?.id, `Your service request (${v.requestType}) has been submitted — our support team will pick it up.`, 'PLAN');
         this.toastService.success('Service request raised — our support team will pick it up.');
         this.newRequestForm.reset({ requestType: 'PlanChange', lineId: null, additionalDetails: '' });
         this.isRequestModalOpen = false;
@@ -983,6 +1101,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit {
       next: () => {
         this.isSubmittingTicket = false;
         this.iamService.recordAudit('FAULT_TICKET_SUBMITTED', 'SUBSCRIBER');
+        this.pushNotification(this.user?.id, `Your fault report (${v.faultType}) has been logged and routed to Network Ops.`, 'FAULT');
         this.toastService.success('Fault reported — routed to Network Ops.');
         this.newTicketForm.reset({ faultType: 'NoCoverage', lineId: null, description: '' });
         this.isTicketModalOpen = false;

@@ -36,6 +36,9 @@ public class FaultTicket {
     @Column(name = "raisedDate", nullable = false)
     private LocalDate raisedDate;
 
+    @Column(name = "dueDate", nullable = true)
+    private LocalDate dueDate;
+
     // nullable — only populated when status changes to R (Resolved)
     @Column(name = "resolvedDate", nullable = true)
     private LocalDate resolvedDate;
@@ -53,8 +56,15 @@ public class FaultTicket {
     }
 
     public enum Priority {
-        L, M, H, C
-        // L=Low  M=Medium  H=High  C=Critical
+        L(7), M(3), H(1), C(0);
+        // L=Low (7 days)  M=Medium (3 days)  H=High (1 day)  C=Critical (0 days)
+        private final int slaDays;
+        Priority(int slaDays) {
+            this.slaDays = slaDays;
+        }
+        public int slaDays() {
+            return slaDays;
+        }
     }
 
     public enum TicketStatus {

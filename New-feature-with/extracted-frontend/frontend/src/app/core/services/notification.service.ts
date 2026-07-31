@@ -27,8 +27,12 @@ export class NotificationService {
 
     this.http.get<any[]>(`${this.base}/fetchNotifications/${id}`).subscribe({
       next: data => {
-        this.notifications.set(data);
-        this.unreadCount.set(data.filter(n => n.status === 'UNREAD' || n.status === 'Unread').length);
+        // Newest first — the backend returns rows in insertion (oldest-first) order.
+        const sorted = (data ?? []).slice().sort(
+          (a, b) => new Date(b?.createdDate ?? 0).getTime() - new Date(a?.createdDate ?? 0).getTime()
+        );
+        this.notifications.set(sorted);
+        this.unreadCount.set(sorted.filter(n => n.status === 'UNREAD' || n.status === 'Unread').length);
       },
       error: () => {}
     });
