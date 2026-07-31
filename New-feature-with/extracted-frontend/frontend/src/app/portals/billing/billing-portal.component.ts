@@ -9,7 +9,7 @@ import { PlanService } from '../../core/services/plan.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ReportService } from '../../core/services/report.service';
-import { fadeInUp, staggerFadeIn, scaleIn } from '../../shared/animations';
+import { fadeInUp, staggerFadeIn, scaleIn, shake } from '../../shared/animations';
 import { MyAccountModalComponent } from '../../shared/my-account-modal/my-account-modal.component';
 import { AnalyticsPanelComponent } from '../../shared/analytics/analytics-panel.component';
 import { PaginatePipe } from '../../shared/pagination/paginate.pipe';
@@ -60,12 +60,13 @@ interface Dispute {
   imports: [CommonModule, FormsModule, ReactiveFormsModule, MyAccountModalComponent, AnalyticsPanelComponent, PaginatePipe, PaginatorComponent],
   templateUrl: './billing-portal.component.html',
   styleUrls: ['./billing-portal.component.css'],
-  animations: [fadeInUp, staggerFadeIn, scaleIn]
+  animations: [fadeInUp, staggerFadeIn, scaleIn, shake]
 })
 export class BillingPortalComponent implements OnInit, OnDestroy {
   // ── Layout / session ──────────────────────────────────────────────────────
   section = signal<Section>('invoices');
   isNotificationOpen = signal<boolean>(false);
+  isSidebarCollapsed = signal<boolean>(false);
   isMyAccountOpen = false;
   isProfileDropdownOpen = false;
   billingPeriod = 'Jul 2024';
@@ -364,6 +365,10 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
     if (this.isNotificationOpen()) {
       this.notificationService.refreshNotifications();
     }
+  }
+
+  toggleSidebar(): void {
+    this.isSidebarCollapsed.set(!this.isSidebarCollapsed());
   }
 
   @HostListener('document:click')

@@ -1,5 +1,7 @@
 import { Component, OnInit, signal, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { forkJoin, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService, User } from '../../core/services/auth.service';
 import { AccountService } from '../../core/services/account.service';
@@ -154,7 +156,8 @@ export class AgentPortalComponent implements OnInit {
     this.registerForm = this.fb.group({
       name:     ['', [Validators.required, Validators.minLength(2)]],
       email:    ['', [Validators.required, Validators.email]],
-      password: ['', [Validators.required, Validators.minLength(8)]],
+      password: ['', [Validators.required, Validators.minLength(8),
+        Validators.pattern(/^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/)]],
       phone:    ['', Validators.pattern('^[0-9]{10}$')],
       regionId: [null]
     });
@@ -440,16 +443,55 @@ export class AgentPortalComponent implements OnInit {
       });
       return;
     }
+    // Text query → search IAM subscribers by name, then resolve their accounts
+    // so the results table shows real account details (id, name, email, type, status).
     this.isSearching = true;
-    this.accountService.searchAccounts(query).subscribe({
-      next: (data) => {
-        this.searchResults = data;
-        this.searchResultsPage = 1;
-        this.isSearching = false;
-        this.selectedAccount360 = null;
-        if (data.length === 0) {
+    this.iamService.searchUsers({ name: query }).subscribe({
+      next: (users) => {
+        const subs = (users || []).filter((u: any) => u.roleName === 'S' || u.roleName === 'Subscriber');
+        if (subs.length === 0) {
+          this.searchResults = [];
+          this.searchResultsPage = 1;
+          this.selectedAccount360 = null;
+          this.isSearching = false;
           this.toastService.success('No records found.');
+          return;
         }
+        forkJoin(
+          subs.map((u: any) =>
+            this.accountService.getAccountsBySubscriberId(u.userId).pipe(
+              map((accts: any[]) => ({ user: u, accts: accts || [] })),
+              catchError(() => of({ user: u, accts: [] as any[] }))
+            )
+          )
+        ).subscribe({
+          next: (pairs: any[]) => {
+            const rows: any[] = [];
+            pairs.forEach((p) => {
+              (p.accts || []).forEach((a: any) => {
+                rows.push({
+                  accountId: a.accountId,
+                  subscriberName: p.user.name,
+                  subscriberEmail: p.user.email,
+                  primaryMsisdn: p.user.phone,
+                  accountType: a.accountType,
+                  status: a.status
+                });
+              });
+            });
+            this.searchResults = rows;
+            this.searchResultsPage = 1;
+            this.selectedAccount360 = null;
+            this.isSearching = false;
+            if (rows.length === 0) {
+              this.toastService.success('No records found.');
+            }
+          },
+          error: () => {
+            this.isSearching = false;
+            this.toastService.error('Account lookup failed.');
+          }
+        });
       },
       error: () => {
         this.isSearching = false;

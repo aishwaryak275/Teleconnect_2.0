@@ -194,7 +194,8 @@ export class AdminPortalComponent implements OnInit {
     this.registerForm = this.fb.group({
       name:     ['', [Validators.required, Validators.minLength(2)]],
       email:    ['', [Validators.required, Validators.email]],
-      password: ['', [Validators.required, Validators.minLength(8)]],
+      password: ['', [Validators.required, Validators.minLength(8),
+        Validators.pattern(/^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/)]],
       phone:    ['', Validators.pattern('^[0-9]{10}$')],
       regionId: [null]
     });

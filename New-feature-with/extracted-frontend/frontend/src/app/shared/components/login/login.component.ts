@@ -16,16 +16,9 @@ import { getDefaultPortalRoute } from '../../../core/guards/role.guard';
 export class LoginComponent implements OnInit {
   loginForm: FormGroup;
   isLoading = false;
+  showPassword = false;
 
-  // Demo credentials
-  demoUsers = [
-    { label: 'Subscriber',         email: 'subscriber@teleconnect.com',  password: 'Password@123', color: 'bg-primary-700 hover:bg-primary-800' },
-    { label: 'CS Agent',           email: 'agent@teleconnect.com',        password: 'Password@123', color: 'bg-agent-main hover:bg-agent-dark' },
-    { label: 'Billing Exec',       email: 'billing@teleconnect.com',      password: 'Password@123', color: 'bg-billing-main hover:bg-billing-dark' },
-    { label: 'Network NOC',        email: 'networkops@teleconnect.com',   password: 'Password@123', color: 'bg-netops-main hover:bg-netops-dark' },
-    { label: 'Compliance Officer', email: 'compliance@teleconnect.com',   password: 'Password@123', color: 'bg-compliance-main hover:bg-compliance-dark' },
-    { label: 'System Admin',       email: 'admin@teleconnect.com',        password: 'Admin@123',    color: 'bg-admin-main hover:bg-admin-dark' }
-  ];
+  togglePassword(): void { this.showPassword = !this.showPassword; }
 
   constructor(
     private fb: FormBuilder,
@@ -66,10 +59,5 @@ export class LoginComponent implements OnInit {
         this.toastService.error(msg);
       }
     });
-  }
-
-  quickLogin(email: string, password: string): void {
-    this.loginForm.patchValue({ email, password });
-    this.onSubmit();
   }
 }

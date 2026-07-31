@@ -314,7 +314,7 @@
           <!-- Line details and active plans comparative grid -->
           <div class="grid md:grid-cols-12 gap-6">
             <!-- SIM Lines -->
-            <div class="md:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="md:col-span-12 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <div class="flex items-center justify-between mb-4">
                 <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Assigned SIM Lines &amp; Subscriptions</h4>
                 <button (click)="openAddSimModalFrom360()"
@@ -389,23 +389,6 @@
               </div>
             </div>
 
-            <!-- Invoices / Tickets history summaries -->
-            <div class="md:col-span-4 flex flex-col gap-6">
-              <!-- Tickets -->
-              <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex-grow">
-                <h4 class="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider">Active Fault Tickets</h4>
-                <div *ngIf="selectedAccount360.tickets.length === 0" class="text-center py-6 text-slate-400 text-xs font-light">No active tickets</div>
-                <div class="flex flex-col gap-2">
-                  <div *ngFor="let t of selectedAccount360.tickets" class="p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs">
-                    <div class="flex justify-between items-center mb-1">
-                      <span class="font-bold text-slate-800">#{{ t.id }} - {{ t.faultType }}</span>
-                      <span class="font-semibold text-rose-600" *ngIf="t.priority === 'Critical' || t.priority === 'High'">{{ t.priority }}</span>
-                    </div>
-                    <p class="text-slate-500 font-light truncate">{{ t.description }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -1061,11 +1044,11 @@
         <input
           type="password"
           formControlName="password"
-          placeholder="Min. 8 characters"
+          placeholder="Min 8 chars, 1 uppercase, 1 number, 1 special"
           class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition"
           [class.border-rose-400]="registerForm.get('password')?.invalid && registerForm.get('password')?.touched"
         />
-        <p class="mt-1 text-xs text-rose-500" [class.invisible]="!(registerForm.get('password')?.invalid && registerForm.get('password')?.touched)">Password must be at least 8 characters.</p>
+        <p class="mt-1 text-xs text-rose-500" [class.invisible]="!(registerForm.get('password')?.invalid && registerForm.get('password')?.touched)">Min 8 chars with at least one uppercase letter, one number, and one special character.</p>
       </div>
 
       <!-- Phone + Region ID (side by side) -->
