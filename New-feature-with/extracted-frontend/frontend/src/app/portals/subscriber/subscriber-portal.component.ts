@@ -102,7 +102,6 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
 
   // Usage tracking
   usageSummary: any = null;
-  usageRecords: any[] = [];
   activeBillingCycleId: number | null = null;
 
   // Payment processing
@@ -138,7 +137,17 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
 
   // Usage-threshold notifications (50/90/100%) — fire once each per line+cycle.
   private firedUsageKeys = new Set<string>();
-  private usagePollHandle: any = null;
+  private dataPollHandle: any = null;
+  private voicePollHandle: any = null;
+  private smsPollHandle: any = null;
+  private thresholdPollHandle: any = null;
+  /**
+   * Day-by-day simulated data usage in MB, e.g. [{date:'2026-08-02', usedMb: 400}, ...].
+   * Drives the Data card, Limit panel, and the usage history chart — kept independent of
+   * the backend's usage records, which are seeded in large lump sums that would otherwise
+   * make every day look like a plan violation.
+   */
+  dailyDataHistory: { date: string; usedMb: number }[] = [];
   // Guard so we seed a missing usage summary at most once.
   private usageSeeded = false;
 
@@ -166,10 +175,19 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   ngOnInit(): void {
     this.user = this.authService.currentUser()!;
     this.loadFiredUsageKeys();
+    this.loadDailyDataHistory();
     this.loadData();
     this.initForms();
-    // Poll usage so data-threshold alerts (50/90/100%) fire as consumption grows.
-    this.usagePollHandle = setInterval(() => this.refreshUsageSummary(), 20000);
+    // Poll each usage type on its own cadence so the dashboard visibly ticks over
+    // at different paces instead of all three numbers jumping together.
+    this.dataPollHandle = setInterval(() => this.refreshDataUsage(), 2 * 60 * 1000);
+    this.voicePollHandle = setInterval(() => this.refreshVoiceUsage(), 5 * 60 * 1000);
+    this.smsPollHandle = setInterval(() => this.refreshSmsUsage(), 7 * 60 * 1000);
+    // Check today's 50/80/100% data thresholds far more often than the display polls,
+    // so a notification fires within seconds of actually crossing a threshold instead of
+    // waiting on the next 2-minute data tick.
+    this.thresholdPollHandle = setInterval(() => this.checkDataUsageThresholds(), 10000);
+    this.checkDataUsageThresholds();
   }
 
   ngAfterViewInit(): void {
@@ -177,7 +195,10 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   ngOnDestroy(): void {
-    if (this.usagePollHandle) { clearInterval(this.usagePollHandle); this.usagePollHandle = null; }
+    if (this.dataPollHandle) { clearInterval(this.dataPollHandle); this.dataPollHandle = null; }
+    if (this.voicePollHandle) { clearInterval(this.voicePollHandle); this.voicePollHandle = null; }
+    if (this.smsPollHandle) { clearInterval(this.smsPollHandle); this.smsPollHandle = null; }
+    if (this.thresholdPollHandle) { clearInterval(this.thresholdPollHandle); this.thresholdPollHandle = null; }
     if (this.usageChart) { this.usageChart.destroy(); this.usageChart = null; }
   }
 
@@ -390,20 +411,8 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
           next: (summary) => this.applyUsageSummary(summary, lineId, cycleId),
           error: () => this.applyUsageSummary(null, lineId, cycleId)
         });
-        this.loadUsageRecords(line.lineId, this.activeBillingCycleId);
       },
       error: () => {}
-    });
-  }
-
-  private loadUsageRecords(lineId: number, cycleId: number): void {
-    this.usageService.getRecordsByCycle(lineId, cycleId).subscribe({
-      next: (res: any) => {
-        this.usageRecords = Array.isArray(res?.records) ? res.records
-                          : (Array.isArray(res) ? res : []);
-        if (this.activeTab() === 'usage') setTimeout(() => this.renderUsageChart(), 100);
-      },
-      error: () => { this.usageRecords = []; }
     });
   }
 
@@ -442,6 +451,12 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   setTab(tab: string): void {
     this.activeTab.set(tab);
     this.isNotificationOpen.set(false);
+  }
+
+  /** "Add data" on the Usage dashboard's Data card — jumps to Plan Details > Add-Ons. */
+  goToAddOns(): void {
+    this.setTab('plan');
+    this.planSubTab = 'addons';
   }
 
   toggleSidebar(): void {
@@ -1241,14 +1256,64 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   get activePlan(): any {
     return this.account360?.lines?.[0]?.activeSubscription?.plan ?? null;
   }
-  private get planDataLimitMb(): number { return Number(this.activePlan?.dataGb ?? 0) * 1024; }
   private get planVoiceLimitMin(): number { return Number(this.activePlan?.voiceMinutes ?? 0); }
   private get planSmsLimit(): number { return Number(this.activePlan?.smsCount ?? 0); }
 
+  /** Extra per-day data from an active Data Top-Up add-on (its quota spread evenly across its own validity). */
+  private get addOnDataPerDayLimitMb(): number {
+    const addOn = this.activeSubscriptionAddOn;
+    if (!addOn || (addOn.type ?? '').toString().toUpperCase() !== 'DATATOPUP') return 0;
+    const gb = Number(addOn.quota ?? 0);
+    const days = Number(addOn.validityDays ?? 0);
+    return days > 0 ? (gb / days) * 1024 : 0;
+  }
+
+  /**
+   * The daily data allowance in MB: the plan's dataGb spread evenly across validityDays,
+   * plus any active Data Top-Up add-on's contribution — so buying a top-up immediately
+   * raises the daily cap shown across the Usage Tracking dashboard.
+   */
+  private get planDataPerDayLimitMb(): number {
+    const gb = Number(this.activePlan?.dataGb ?? 0);
+    const days = Number(this.activePlan?.validityDays ?? 0);
+    const baseLimitMb = days > 0 ? (gb / days) * 1024 : 0;
+    return baseLimitMb + this.addOnDataPerDayLimitMb;
+  }
+
+  /** The plan's per-day data allowance in GB, for display (e.g. 1.5, 2.0). */
+  get dataPerDayLimitGb(): number { return this.planDataPerDayLimitMb / 1024; }
+
+  /**
+   * Data used today — simulated client-side rather than summed from backend usage records,
+   * since the backend's usage simulator seeds records in large lump sums that blow well past
+   * a single day's allowance. Ticks up in small steps (see refreshDataUsage) and is always
+   * capped at the plan's daily limit, so the daily card can never show more than 100% used.
+   */
+  get todayDataUsedMb(): number {
+    const entry = this.dailyDataHistory.find(d => d.date === this.todayStr());
+    return Math.min(entry?.usedMb ?? 0, this.planDataPerDayLimitMb);
+  }
+
   getDataPercentage(): number {
-    const limit = this.planDataLimitMb;
-    const used = Number(this.usageSummary?.dataUsedMb ?? 0);
+    const limit = this.planDataPerDayLimitMb;
+    const used = this.todayDataUsedMb;
     return limit <= 0 ? 0 : Math.min(100, Math.round((used / limit) * 100));
+  }
+
+  /** Percentage of today's allowance still remaining — drives the Data card's progress bar. */
+  getDataRemainingPercentage(): number {
+    const limit = this.planDataPerDayLimitMb;
+    if (limit <= 0) return 0;
+    const remaining = Math.max(0, limit - this.todayDataUsedMb);
+    return Math.round((remaining / limit) * 100);
+  }
+
+  /** Bar color reflects how much of today's allowance is used — matches the app's amber/rose warning language. */
+  getDataBarColorClass(): string {
+    const pct = this.getDataPercentage();
+    if (pct >= 95) return 'bg-rose-500';
+    if (pct >= 80) return 'bg-amber-500';
+    return 'bg-blue-600';
   }
 
   getVoicePercentage(): number {
@@ -1279,7 +1344,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   recomputeLimitRows(): void {
     const s = this.usageSummary ?? {};
     this.limitRows = [
-      this.buildLimitRow('Data',  (Number(s.dataUsedMb ?? 0) / 1024), Number(this.activePlan?.dataGb ?? 0),       'GB',  1),
+      this.buildLimitRow('Data',  (this.todayDataUsedMb / 1024),      this.dataPerDayLimitGb,                     'GB/Day', 1),
       this.buildLimitRow('Voice', Number(s.voiceUsedMin ?? 0),        Number(this.activePlan?.voiceMinutes ?? 0), 'Min', 0),
       this.buildLimitRow('SMS',   Number(s.smsUsed ?? 0),             Number(this.activePlan?.smsCount ?? 0),     'SMS', 0)
     ];
@@ -1306,7 +1371,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
     };
   }
 
-  /** Lightweight periodic refresh of the usage summary/records (drives threshold alerts). */
+  /** Lightweight periodic refresh of the usage summary (drives threshold alerts). */
   private refreshUsageSummary(): void {
     const line = this.account360?.lines?.[0];
     if (!line?.lineId || !this.activeBillingCycleId) return;
@@ -1315,7 +1380,6 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
       next: (summary) => this.applyUsageSummary(summary, lineId, cycleId),
       error: () => this.applyUsageSummary(null, lineId, cycleId)
     });
-    this.loadUsageRecords(lineId, cycleId);
   }
 
   /**
@@ -1337,26 +1401,69 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
     }
   }
 
-  /** Fire a USAGE notification the first time data crosses 50%, 90% and 100% this cycle. */
+  /** Copy only the named fields from a freshly-fetched summary into the cached one. */
+  private mergeUsageSummaryFields(summary: any, fields: string[]): void {
+    if (!summary) return;
+    const merged = { ...(this.usageSummary ?? {}) };
+    for (const f of fields) {
+      if (summary[f] !== undefined) merged[f] = summary[f];
+    }
+    this.usageSummary = merged;
+  }
+
+  /**
+   * Data ticks every 2 minutes. The daily-card number is a local simulation (+0.2 GB per
+   * tick, capped at the daily limit) rather than a sum of backend records, since those are
+   * seeded in large lump sums. The 50/80/100% threshold check runs off this same simulated
+   * value on its own, much faster poll (see checkDataUsageThresholds / ngOnInit).
+   */
+  private refreshDataUsage(): void {
+    const nextUsedMb = Math.min(this.planDataPerDayLimitMb, this.todayDataUsedMb + 0.2 * 1024);
+    this.recordTodayDataUsage(nextUsedMb);
+    this.recomputeLimitRows();
+    if (this.activeTab() === 'usage') setTimeout(() => this.renderUsageChart(), 100);
+  }
+
+  /** Voice ticks every 5 minutes. */
+  private refreshVoiceUsage(): void {
+    const line = this.account360?.lines?.[0];
+    if (!line?.lineId || !this.activeBillingCycleId) return;
+    this.usageService.getSummary(line.lineId, this.activeBillingCycleId).subscribe({
+      next: (summary) => { this.mergeUsageSummaryFields(summary, ['voiceUsedMin']); this.recomputeLimitRows(); },
+      error: () => {}
+    });
+  }
+
+  /** SMS ticks every 7 minutes. */
+  private refreshSmsUsage(): void {
+    const line = this.account360?.lines?.[0];
+    if (!line?.lineId || !this.activeBillingCycleId) return;
+    this.usageService.getSummary(line.lineId, this.activeBillingCycleId).subscribe({
+      next: (summary) => { this.mergeUsageSummaryFields(summary, ['smsUsed']); this.recomputeLimitRows(); },
+      error: () => {}
+    });
+  }
+
+  /**
+   * Fire a USAGE notification the first time today's data usage crosses 50%, 80% and 100% —
+   * matching the same daily percentage the Data card and warning banner show. Keyed by
+   * today's date (not the billing cycle) so each milestone can fire again once the daily
+   * allowance resets tomorrow.
+   */
   private checkDataUsageThresholds(): void {
     const line = this.account360?.lines?.[0];
-    const cycle = this.activeBillingCycleId;
     const uid = this.user?.id;
-    if (!line?.lineId || !cycle || !uid || !this.usageSummary) return;
+    if (!line?.lineId || !uid) return;
 
-    const used = Number(this.usageSummary.dataUsedMb ?? 0);
-    const rem = Number(this.usageSummary.dataRemainingMb ?? 0);
-    const total = used + rem;
-    if (total <= 0) return;
-    const pct = (used / total) * 100;
-
+    const pct = this.getDataPercentage();
     const milestones = [
-      { t: 50,  msg: 'You have used 50% of your data allowance.' },
-      { t: 90,  msg: 'Alert: you have used 90% of your data allowance.' },
-      { t: 100, msg: 'You have used 100% of your data — your data allowance is exhausted.' }
+      { t: 50,  msg: "You have used 50% of today's data allowance." },
+      { t: 80,  msg: "Alert: you have used 80% of today's data allowance." },
+      { t: 100, msg: "You have used 100% of today's data — your daily allowance is exhausted." }
     ];
+    const day = this.todayStr();
     for (const m of milestones) {
-      const key = `${line.lineId}:${cycle}:${m.t}`;
+      const key = `${line.lineId}:${day}:${m.t}`;
       if (pct >= m.t && !this.firedUsageKeys.has(key)) {
         this.firedUsageKeys.add(key);
         this.persistFiredUsageKeys();
@@ -1378,79 +1485,101 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
     try { localStorage.setItem(this.usageKeysStorageKey(), JSON.stringify([...this.firedUsageKeys])); } catch { /* ignore */ }
   }
 
+  private dailyDataHistoryStorageKey(): string { return `dailyDataHistory:${this.user?.id}`; }
+
+  /** Restore the simulated day-by-day usage history on load. */
+  private loadDailyDataHistory(): void {
+    try {
+      const raw = localStorage.getItem(this.dailyDataHistoryStorageKey());
+      if (raw) this.dailyDataHistory = JSON.parse(raw);
+    } catch { /* ignore */ }
+  }
+
+  private persistDailyDataHistory(): void {
+    try { localStorage.setItem(this.dailyDataHistoryStorageKey(), JSON.stringify(this.dailyDataHistory)); } catch { /* ignore */ }
+  }
+
+  /** Upsert today's entry in the history (keeping only the last 30 days) and persist it. */
+  private recordTodayDataUsage(usedMb: number): void {
+    const today = this.todayStr();
+    const idx = this.dailyDataHistory.findIndex(d => d.date === today);
+    if (idx >= 0) this.dailyDataHistory[idx] = { date: today, usedMb };
+    else this.dailyDataHistory.push({ date: today, usedMb });
+    this.dailyDataHistory = this.dailyDataHistory.slice(-30);
+    this.persistDailyDataHistory();
+  }
+
   renderUsageChart(): void {
     const ctx = document.getElementById('usageChart') as HTMLCanvasElement;
     if (!ctx) return;
     if (this.usageChart) this.usageChart.destroy();
 
-    // Build the daily data trend from the subscriber's own usage records
-    // (USAGE_RECORDS authority) — the /analytics endpoint needs USAGE_ANALYTICS
-    // which subscribers don't have.
-    const dataRecords = (this.usageRecords ?? [])
-      .filter((r: any) => String(r?.usageType ?? '').toUpperCase() === 'DATA');
+    // Build the daily data trend from our own simulated history rather than the backend's
+    // usage records, which are seeded in large lump sums (see dailyDataHistory).
+    const history = [...this.dailyDataHistory].sort((a, b) => a.date.localeCompare(b.date));
+    const labels = history.map(d => d.date.substring(5));                    // MM-DD
+    const data = history.map(d => +((d.usedMb ?? 0) / 1024).toFixed(3));     // GB
 
-    const byDay = new Map<string, number>();
-    for (const r of dataRecords) {
-      const day = String(r?.usageDate ?? '').substring(0, 10);
-      if (!day) continue;
-      byDay.set(day, (byDay.get(day) ?? 0) + Number(r?.quantity ?? 0));
-    }
-    const days = [...byDay.keys()].sort();
-    const labels = days.map(d => d.substring(5));              // MM-DD
-    const data = days.map(d => +(((byDay.get(d) ?? 0)) / 1024).toFixed(3)); // GB
-
-    this.drawUsageChart(ctx, labels, data);
+    this.drawUsageChart(ctx, labels, data, this.dataPerDayLimitGb);
   }
 
   // ── Usage forecast / insights ────────────────────────────────────────────────
   get dataUsedGb(): number { return (this.usageSummary?.dataUsedMb ?? 0) / 1024; }
-  /** Remaining = selected plan's data allowance minus what's been used. */
+  /** Remaining = today's per-day data allowance minus what's been used today. */
   get dataRemainingGb(): number {
-    const remMb = Math.max(0, this.planDataLimitMb - Number(this.usageSummary?.dataUsedMb ?? 0));
+    const remMb = Math.max(0, this.planDataPerDayLimitMb - this.todayDataUsedMb);
     return remMb / 1024;
   }
 
-  /** Average data consumed per active day this cycle, in MB. */
-  get avgDailyDataMb(): number {
-    const dataRecords = (this.usageRecords ?? [])
-      .filter((r: any) => String(r?.usageType ?? '').toUpperCase() === 'DATA');
-    const days = new Set(dataRecords.map((r: any) => String(r?.usageDate ?? '').substring(0, 10))).size;
-    const totalMb = dataRecords.reduce((s: number, r: any) => s + Number(r?.quantity ?? 0), 0);
-    return days > 0 ? totalMb / days : 0;
+  /** Hours remaining until the daily data allowance resets at midnight. */
+  get dataRenewsInHours(): number {
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    return Math.max(1, Math.ceil((nextMidnight.getTime() - now.getTime()) / 3600000));
   }
 
-  /** Projected days until data runs out at the current pace (null if unknown). */
-  get usageRunwayDays(): number | null {
-    const remainingMb = Math.max(0, this.planDataLimitMb - Number(this.usageSummary?.dataUsedMb ?? 0));
-    const avg = this.avgDailyDataMb;
-    if (avg <= 0) return null;
-    return Math.max(0, Math.round(remainingMb / avg));
-  }
+  /** One bar per day, colored red when that day went over the daily cap, plus a dashed reference line at the cap. */
+  private drawUsageChart(ctx: HTMLCanvasElement, labels: string[], data: number[], dailyCapGb: number): void {
+    const barColors = data.map(v => (dailyCapGb > 0 && v > dailyCapGb) ? '#f43f5e' : '#3B4FE0');
+    const datasets: any[] = [{
+      type: 'bar',
+      label: 'Data Used (GB)',
+      data,
+      backgroundColor: barColors,
+      borderRadius: 6,
+      maxBarThickness: 40
+    }];
+    if (dailyCapGb > 0) {
+      datasets.push({
+        type: 'line',
+        label: 'Daily Limit (GB)',
+        data: labels.map(() => dailyCapGb),
+        borderColor: '#f59e0b',
+        borderDash: [6, 4],
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false,
+        tension: 0
+      });
+    }
 
-  private drawUsageChart(ctx: HTMLCanvasElement, labels: string[], data: number[]): void {
     this.usageChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Data Used (GB)',
-          data,
-          borderColor: '#3B4FE0',
-          backgroundColor: 'rgba(59, 79, 224, 0.08)',
-          fill: true,
-          tension: 0.35,
-          borderWidth: 3,
-          pointRadius: 4,
-          pointBackgroundColor: '#3B4FE0'
-        }]
-      },
+      type: 'bar',
+      data: { labels, datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: { legend: { display: true, position: 'top' } },
         scales: {
-          x: { grid: { display: false } },
-          y: { grid: { color: '#e2e8f0' }, beginAtZero: true }
+          x: {
+            grid: { display: false },
+            title: { display: true, text: 'Date (MM-DD)', font: { weight: 'bold' } }
+          },
+          y: {
+            grid: { color: '#e2e8f0' },
+            beginAtZero: true,
+            title: { display: true, text: 'Data Used (GB)', font: { weight: 'bold' } }
+          }
         }
       }
     });

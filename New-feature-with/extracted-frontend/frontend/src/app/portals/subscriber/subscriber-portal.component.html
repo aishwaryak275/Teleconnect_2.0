@@ -1,12 +1,12 @@
-<div class="min-h-screen flex bg-slate-50 font-sans">
+<div class="h-screen flex bg-slate-50 font-sans overflow-hidden">
 
   <!-- ========================================== -->
   <!-- SIDEBAR                                    -->
   <!-- ========================================== -->
-  <aside 
-    [class.w-64]="!isSidebarCollapsed()" 
-    [class.w-20]="isSidebarCollapsed()" 
-    class="bg-white text-slate-700 flex flex-col justify-between transition-all duration-300 ease-in-out border-r border-sky-200 shadow-sm shrink-0"
+  <aside
+    [class.w-64]="!isSidebarCollapsed()"
+    [class.w-20]="isSidebarCollapsed()"
+    class="h-full overflow-y-auto bg-white text-slate-700 flex flex-col justify-between transition-all duration-300 ease-in-out border-r border-sky-200 shadow-sm shrink-0"
   >
     <div>
       <!-- Brand Logo Header -->
@@ -341,8 +341,8 @@
                   </button>
                 </div>
 
-                <!-- Stats: validity, data, voice -->
-                <div class="flex gap-4 mb-3">
+                <!-- Stats: validity, data, voice, SMS -->
+                <div class="flex flex-wrap gap-4 gap-y-2 mb-3">
                   <div>
                     <p class="text-sm font-bold text-slate-800">{{ p.validityDays }}<span class="text-xs font-normal text-slate-500"> Days</span></p>
                     <p class="text-[10px] text-slate-500 uppercase tracking-wide">Validity</p>
@@ -354,6 +354,10 @@
                   <div class="border-l border-slate-200 pl-4">
                     <p class="text-sm font-bold text-slate-800">{{ p.voiceMinutes > 0 ? p.voiceMinutes + ' Min' : 'Unlimited' }}</p>
                     <p class="text-[10px] text-slate-500 uppercase tracking-wide">Voice</p>
+                  </div>
+                  <div class="border-l border-slate-200 pl-4">
+                    <p class="text-sm font-bold text-slate-800">{{ p.smsCount > 0 ? p.smsCount + ' SMS' : 'Unlimited' }}</p>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wide">SMS</p>
                   </div>
                 </div>
 
@@ -374,7 +378,7 @@
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                 </svg>
-                {{ p.type }} Only
+                {{ accountType }} Only
               </button>
               <button
                 *ngIf="isPlanCompatible(p)"
@@ -512,28 +516,29 @@
           <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <p class="font-medium">Data warning threshold crossed. You have consumed over 80% of your allocated monthly data.</p>
+          <p class="font-medium">Data warning threshold crossed. You have consumed {{ getDataPercentage() }}% of today's data allowance.</p>
         </div>
 
-        <!-- 3 circular progress rings grid -->
+        <!-- Data / Voice / SMS at-a-glance grid -->
         <div class="grid md:grid-cols-3 gap-6">
           <!-- Data -->
-          <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex items-center justify-between">
-            <div>
-              <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Data Usage</span>
-              <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ ((usageSummary?.dataUsedMb ?? 0) / 1024) | number:'1.1-1' }} GB</p>
-              <p class="text-xs text-slate-500 font-light mt-1">of {{ account360?.lines?.[0]?.activeSubscription?.plan?.dataGb }} GB plan</p>
+          <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Data</span>
+              <span *ngIf="getDataPercentage() >= 80"
+                    class="text-xs font-semibold px-2.5 py-1 rounded-full"
+                    [class.bg-amber-100]="getDataPercentage() < 95" [class.text-amber-700]="getDataPercentage() < 95"
+                    [class.bg-rose-100]="getDataPercentage() >= 95" [class.text-rose-700]="getDataPercentage() >= 95">
+                {{ getDataPercentage() }}%
+              </span>
             </div>
-            <div class="relative w-24 h-24 flex items-center justify-center">
-              <svg class="w-full h-full transform -rotate-90">
-                <circle cx="48" cy="48" r="40" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
-                <circle cx="48" cy="48" r="40" stroke="#3B4FE0" stroke-width="8" fill="transparent"
-                        [attr.stroke-dasharray]="251.2"
-                        [attr.stroke-dashoffset]="getDashOffset(getDataPercentage())"
-                        stroke-linecap="round"/>
-              </svg>
-              <span class="absolute text-sm font-bold text-slate-800">{{ getDataPercentage() }}%</span>
+            <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ dataRemainingGb | number:'1.2-2' }} GB</p>
+            <p class="text-xs text-slate-500 font-light mt-1">left of {{ dataPerDayLimitGb | number:'1.2-2' }} GB/Day</p>
+            <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden mt-3">
+              <div class="h-full rounded-full transition-all duration-500" [ngClass]="getDataBarColorClass()" [style.width.%]="getDataRemainingPercentage()"></div>
             </div>
+            <p class="text-xs text-slate-400 font-light mt-1.5">Renews in {{ dataRenewsInHours }} hours</p>
+            <button (click)="goToAddOns()" class="mt-auto pt-3 w-full py-2 rounded-full bg-blue-700 text-sm font-semibold text-white hover:bg-blue-800 transition">Add data</button>
           </div>
 
           <!-- Voice -->
@@ -575,34 +580,10 @@
           </div>
         </div>
 
-        <!-- Forecast / insights strip -->
-        <div class="grid md:grid-cols-3 gap-6">
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Data Remaining</span>
-            <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ dataRemainingGb | number:'1.1-1' }} GB</p>
-            <p class="text-xs text-slate-500 font-light mt-1">of {{ account360?.lines?.[0]?.activeSubscription?.plan?.dataGb }} GB entitlement</p>
-          </div>
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Avg Daily Data</span>
-            <p class="text-2xl font-extrabold text-slate-800 mt-2">{{ avgDailyDataMb | number:'1.0-0' }} MB<span class="text-sm font-medium text-slate-400">/day</span></p>
-            <p class="text-xs text-slate-500 font-light mt-1">based on this cycle's usage</p>
-          </div>
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
-               [class.border-amber-300]="usageRunwayDays !== null && usageRunwayDays <= 5">
-            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Projected Runway</span>
-            <p class="text-2xl font-extrabold mt-2"
-               [class.text-slate-800]="usageRunwayDays === null || usageRunwayDays > 5"
-               [class.text-amber-600]="usageRunwayDays !== null && usageRunwayDays <= 5">
-              {{ usageRunwayDays !== null ? usageRunwayDays + ' days' : '—' }}
-            </p>
-            <p class="text-xs text-slate-500 font-light mt-1">until data is exhausted at current pace</p>
-          </div>
-        </div>
-
         <!-- Limit Status Panel -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div id="limitStatusPanel" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <h3 class="text-base font-bold text-slate-800 tracking-tight">Limit Status Panel</h3>
-          <p class="text-xs text-slate-400 font-light mt-0.5 mb-5">Usage compared against stored plan limits (dataLimitMb / voiceLimitMin / smsLimit).</p>
+          <p class="text-xs text-slate-400 font-light mt-0.5 mb-5">Usage compared against stored plan limits (data resets daily; voiceLimitMin / smsLimit are per cycle).</p>
           <div class="flex flex-col gap-5">
             <div *ngFor="let row of limitRows">
               <div class="flex items-center justify-between mb-1.5">
@@ -622,7 +603,7 @@
           <div class="h-80 relative">
             <canvas id="usageChart"></canvas>
           </div>
-          <p *ngIf="!usageRecords?.length" class="text-center text-sm text-slate-400 font-light -mt-40 relative">No usage recorded yet for this billing cycle.</p>
+          <p *ngIf="!dailyDataHistory?.length" class="text-center text-sm text-slate-400 font-light -mt-40 relative">No usage recorded yet for this billing cycle.</p>
         </div>
       </div>
 

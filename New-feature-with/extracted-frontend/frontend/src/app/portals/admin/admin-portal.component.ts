@@ -249,7 +249,7 @@ export class AdminPortalComponent implements OnInit {
     this.usageTo = '';
   }
 
-  /** Records after applying the type + date-range filters. */
+  /** Records after applying the type + date-range filters, capped to the 10 most recent pages for presentability. */
   filteredUsageRecords(): any[] {
     const type = this.usageTypeFilter;
     const from = this.usageFrom ? new Date(this.usageFrom + 'T00:00:00').getTime() : null;
@@ -263,7 +263,8 @@ export class AdminPortalComponent implements OnInit {
         if (to && t > to) return false;
         return true;
       })
-      .sort((a, b) => new Date(b?.usageDate ?? 0).getTime() - new Date(a?.usageDate ?? 0).getTime());
+      .sort((a, b) => new Date(b?.usageDate ?? 0).getTime() - new Date(a?.usageDate ?? 0).getTime())
+      .slice(0, 10 * this.pageSize);
   }
 
   /** Aggregate totals across all summaries for the header tiles. */
