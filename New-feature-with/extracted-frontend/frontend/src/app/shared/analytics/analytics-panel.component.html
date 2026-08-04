@@ -1,30 +1,49 @@
 <div class="flex flex-col gap-6">
   <!-- Controls -->
-  <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-end gap-4">
-    <div>
-      <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Billing Cycle ID</label>
-      <input type="number" min="1" [(ngModel)]="cycleId"
-        class="w-32 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
+  <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+    <!-- Row 1: Report selector (pill tabs) — only when singleMetricMode is on -->
+    <div *ngIf="singleMetricMode && metrics.length">
+      <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Report</label>
+      <div class="inline-flex items-center bg-slate-100 rounded-full p-1 gap-1 flex-wrap">
+        <button *ngFor="let m of metrics"
+          type="button"
+          (click)="onSelectMetric(m.key)"
+          [ngClass]="selectedKey === m.key
+            ? 'bg-slate-900 text-white shadow'
+            : 'text-slate-600 hover:text-slate-900'"
+          class="px-5 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer">
+          {{ m.title }}
+        </button>
+      </div>
     </div>
-    <div>
-      <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Period Start</label>
-      <input type="date" [(ngModel)]="periodStart"
-        class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
+
+    <!-- Row 2: Filters + refresh -->
+    <div class="flex flex-col sm:flex-row sm:items-end gap-4 flex-wrap">
+      <div>
+        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Billing Cycle ID</label>
+        <input type="number" min="1" [(ngModel)]="cycleId"
+          class="w-32 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Period Start</label>
+        <input type="date" [(ngModel)]="periodStart"
+          class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Period End</label>
+        <input type="date" [(ngModel)]="periodEnd"
+          class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
+      </div>
+      <button (click)="loadAll()"
+        class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow cursor-pointer transition">
+        Refresh
+      </button>
     </div>
-    <div>
-      <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Period End</label>
-      <input type="date" [(ngModel)]="periodEnd"
-        class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
-    </div>
-    <button (click)="loadAll()"
-      class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow cursor-pointer transition">
-      Refresh
-    </button>
   </div>
 
   <!-- Metric cards -->
-  <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-    <div *ngFor="let m of metrics" class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+  <div class="grid grid-cols-1 gap-6" [class.xl:grid-cols-2]="!singleMetricMode">
+    <div *ngFor="let m of visibleMetrics" class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
       <!-- Card header -->
       <div class="flex items-start justify-between px-5 py-4 border-b border-slate-100">
         <div>

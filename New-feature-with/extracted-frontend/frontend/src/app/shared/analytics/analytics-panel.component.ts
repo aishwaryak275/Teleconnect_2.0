@@ -45,8 +45,11 @@ const METRIC_META: Record<MetricKey, MetricMeta> = {
 })
 export class AnalyticsPanelComponent implements OnInit, OnDestroy {
   @Input({ required: true }) role!: User['role'];
+  /** When true, show a metric selector dropdown and render only the chosen chart. */
+  @Input() singleMetricMode = false;
 
   metrics: MetricMeta[] = [];
+  selectedKey: MetricKey | null = null;
 
   // Shared query controls
   cycleId = 1;
@@ -73,7 +76,28 @@ export class AnalyticsPanelComponent implements OnInit, OnDestroy {
     start.setDate(start.getDate() - 90);
     this.periodEnd = this.fmt(today);
     this.periodStart = this.fmt(start);
-    if (this.metrics.length) this.loadAll();
+    if (!this.metrics.length) return;
+    if (this.singleMetricMode) {
+      this.selectedKey = this.metrics[0].key;
+      this.load(this.selectedKey);
+    } else {
+      this.loadAll();
+    }
+  }
+
+  onSelectMetric(key: MetricKey): void {
+    this.selectedKey = key;
+    // Reuse cached data if we've already loaded it, else fetch it now.
+    if (this.data[key]) {
+      setTimeout(() => this.renderChart(key), 80);
+    } else {
+      this.load(key);
+    }
+  }
+
+  get visibleMetrics(): MetricMeta[] {
+    if (!this.singleMetricMode) return this.metrics;
+    return this.metrics.filter(m => m.key === this.selectedKey);
   }
 
   ngOnDestroy(): void {
@@ -85,6 +109,10 @@ export class AnalyticsPanelComponent implements OnInit, OnDestroy {
   }
 
   loadAll(): void {
+    if (this.singleMetricMode && this.selectedKey) {
+      this.load(this.selectedKey);
+      return;
+    }
     this.metrics.forEach(m => this.load(m.key));
   }
 
@@ -147,16 +175,20 @@ export class AnalyticsPanelComponent implements OnInit, OnDestroy {
     const palette = ['#0ea5e9', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
     switch (key) {
-      case 'arpu':
+      case 'arpu': {
+        const hideEnterprise = this.role === 'Billing';
+        const arpuLabels = hideEnterprise ? ['Prepaid', 'Postpaid'] : ['Prepaid', 'Postpaid', 'Enterprise'];
+        const arpuData = hideEnterprise ? [d.arpuPrepaid, d.arpuPostpaid] : [d.arpuPrepaid, d.arpuPostpaid, d.arpuEnterprise];
         this.charts[key] = new Chart(canvas, {
           type: 'bar',
           data: {
-            labels: ['Prepaid', 'Postpaid', 'Enterprise'],
-            datasets: [{ label: 'ARPU (₹)', data: [d.arpuPrepaid, d.arpuPostpaid, d.arpuEnterprise], backgroundColor: palette.slice(0, 3) }]
+            labels: arpuLabels,
+            datasets: [{ label: 'ARPU (₹)', data: arpuData, backgroundColor: palette.slice(0, arpuLabels.length) }]
           },
           options: this.baseOpts()
         });
         break;
+      }
       case 'churn': {
         const retained = Math.max(0, (d.subscribersAtPeriodStart ?? 0) - (d.grossChurned ?? 0));
         this.charts[key] = new Chart(canvas, {

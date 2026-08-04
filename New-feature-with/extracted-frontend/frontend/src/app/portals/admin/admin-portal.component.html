@@ -981,7 +981,7 @@
 
       <!-- Analytics & Reporting -->
       <div *ngIf="activeTab() === 'analytics'" [@fadeInUp]>
-        <app-analytics-panel [role]="user.role"></app-analytics-panel>
+        <app-analytics-panel [role]="user.role" [singleMetricMode]="true"></app-analytics-panel>
       </div>
 
       <!-- Usage Tracking (all subscribers) -->

@@ -96,7 +96,6 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   invoicePage = 1;
   readonly invoicePageSize = 10;
   lastSync = '14:32 UTC';
-  isRunActive = false;
 
   // Shared page size for the paginated tables (keeps content on one screen).
   readonly pageSize = 8;
@@ -203,9 +202,8 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   private initForms(): void {
     this.recordPaymentForm = this.fb.group({
       invoiceRef: ['', Validators.required],
-      customer: ['', Validators.required],
       amount: [null, [Validators.required, Validators.min(1)]],
-      method: ['Bank Transfer', Validators.required],
+      method: ['BANK_TRANSFER', Validators.required],
       reference: ['', Validators.required]
     });
 
@@ -237,16 +235,32 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
 
   /** Best-effort refresh from the backend; keeps seed data on any failure. */
   private loadFromBackend(): void {
+    let pendingPayments: any[] | null = null;
+    let pendingDisputes: any[] | null = null;
+
     this.billingService.getInvoices().subscribe({
-      next: (data) => { if (Array.isArray(data) && data.length) this.invoices = this.mapInvoices(data); },
+      next: (data) => {
+        if (Array.isArray(data) && data.length) this.invoices = this.mapInvoices(data);
+        // Re-map any payment/dispute data that arrived before invoices did.
+        if (pendingPayments) this.payments = this.mapPayments(pendingPayments);
+        if (pendingDisputes) this.disputes = this.mapDisputes(pendingDisputes);
+      },
       error: () => { /* keep seed data — backend optional */ }
     });
     this.billingService.getPayments().subscribe({
-      next: (data) => { if (Array.isArray(data) && data.length) this.payments = this.mapPayments(data); },
+      next: (data) => {
+        if (!Array.isArray(data) || !data.length) return;
+        pendingPayments = data;
+        this.payments = this.mapPayments(data);
+      },
       error: () => { /* keep seed data */ }
     });
     this.billingService.getDisputes().subscribe({
-      next: (data) => { if (Array.isArray(data) && data.length) this.disputes = this.mapDisputes(data); },
+      next: (data) => {
+        if (!Array.isArray(data) || !data.length) return;
+        pendingDisputes = data;
+        this.disputes = this.mapDisputes(data);
+      },
       error: () => { /* keep seed data */ }
     });
   }
@@ -257,7 +271,7 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
       invoiceId: d.invoiceId != null ? `INV-${d.invoiceId}` : (d.invoiceCode ?? '—'),
       rawId: d.invoiceId != null ? Number(d.invoiceId) : undefined,
       accountId: d.accountId != null ? `ACC-${d.accountId}` : '—',
-      customer: d.customerName ?? d.accountName ?? 'Account #' + (d.accountId ?? ''),
+      customer: d.customerName ?? d.accountName ?? (d.accountId != null ? `Account #${d.accountId}` : '—'),
       cycle: d.cycle ?? this.billingPeriod,
       amount: Number(d.totalAmount ?? d.amount ?? 0),
       dueDate: (d.dueDate ?? '').toString().slice(0, 10),
@@ -266,33 +280,41 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   }
 
   private mapPayments(data: any[]): Payment[] {
-    return data.map(d => ({
-      paymentId: d.paymentId != null ? `PAY-${d.paymentId}` : '—',
-      invoiceRef: d.invoiceId != null ? `INV-${d.invoiceId}` : '—',
-      accountId: d.accountId != null ? `ACC-${d.accountId}` : '—',
-      customer: d.customerName ?? 'Account #' + (d.accountId ?? ''),
-      amount: Number(d.amountPaid ?? d.amount ?? 0),
-      method: (d.paymentMethod ?? 'Bank Transfer'),
-      date: (d.paymentDate ?? '').toString().slice(0, 10),
-      reference: d.transactionRef ?? '—',
-      status: (d.status === 'Cleared' ? 'Cleared' : 'Confirmed')
-    }));
+    return data.map(d => {
+      const invoiceId: number | undefined = d.invoiceId != null ? Number(d.invoiceId) : undefined;
+      const matched = invoiceId != null ? this.invoices.find(i => i.rawId === invoiceId) : undefined;
+      return {
+        paymentId: d.paymentId != null ? `PAY-${d.paymentId}` : '—',
+        invoiceRef: invoiceId != null ? `INV-${invoiceId}` : '—',
+        accountId: d.accountId != null ? `ACC-${d.accountId}` : (matched?.accountId ?? '—'),
+        customer: d.customerName ?? matched?.customer ?? '—',
+        amount: Number(d.amountPaid ?? d.amount ?? 0),
+        method: (d.paymentMethod ?? 'Bank Transfer'),
+        date: (d.paymentDate ?? '').toString().slice(0, 10),
+        reference: d.transactionRef ?? '—',
+        status: (d.status === 'Cleared' ? 'Cleared' : 'Confirmed')
+      };
+    });
   }
 
   private mapDisputes(data: any[]): Dispute[] {
-    return data.map(d => ({
-      disputeId: d.disputeId != null ? `DSP-${d.disputeId}` : '—',
-      accountId: '—',
-      customer: d.customerName ?? 'Subscriber #' + (d.subscriberId ?? ''),
-      invoice: d.invoiceId != null ? `INV-${d.invoiceId}` : '—',
-      category: d.category ?? d.disputeReason ?? 'Billing',
-      reason: d.description ?? d.disputeReason ?? '',
-      amount: Number(d.disputedAmount ?? 0),
-      priority: (d.priority ?? 'Medium'),
-      status: this.normalizeDisputeStatus(d.status),
-      assignee: d.assignedTo ?? 'Unassigned',
-      daysOpen: Number(d.daysOpen ?? 0)
-    }));
+    return data.map(d => {
+      const invoiceId: number | undefined = d.invoiceId != null ? Number(d.invoiceId) : undefined;
+      const matched = invoiceId != null ? this.invoices.find(i => i.rawId === invoiceId) : undefined;
+      return {
+        disputeId: d.disputeId != null ? `DSP-${d.disputeId}` : '—',
+        accountId: matched?.accountId ?? '—',
+        customer: d.customerName ?? matched?.customer ?? '—',
+        invoice: invoiceId != null ? `INV-${invoiceId}` : '—',
+        category: d.category ?? d.disputeReason ?? 'Billing',
+        reason: d.description ?? d.disputeReason ?? '',
+        amount: Number(d.disputedAmount ?? 0),
+        priority: (d.priority ?? 'Medium'),
+        status: this.normalizeDisputeStatus(d.status),
+        assignee: d.assignedTo ?? 'Unassigned',
+        daysOpen: Number(d.daysOpen ?? 0)
+      };
+    });
   }
 
   private normalizeInvoiceStatus(s: any): Invoice['status'] {
@@ -452,18 +474,6 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
     return this.openDisputesPanel.reduce((sum, d) => sum + d.amount, 0);
   }
 
-  startInvoiceRun(): void {
-    if (this.isRunActive) return;
-    this.isRunActive = true;
-    this.toastService.info('Invoice run started for ' + this.billingPeriod + '…');
-    setTimeout(() => {
-      this.isRunActive = false;
-      this.lastSync = 'just now';
-      this.iamService.recordAudit('INVOICE_RUN_TRIGGERED', 'BILLING');
-      this.toastService.success('Invoice batch run completed. ' + this.invoices.length + ' invoices processed.');
-    }, 1400);
-  }
-
   /** Build a CSV file from headers + rows and trigger a download (opens in Excel). */
   private downloadCsv(filename: string, headers: string[], rows: (string | number)[][]): void {
     const esc = (v: any) => {
@@ -570,12 +580,18 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   }
 
   openRecordPayment(): void {
-    this.recordPaymentForm.reset({ method: 'Bank Transfer', invoiceRef: '', customer: '', amount: null, reference: '' });
+    this.recordPaymentForm.reset({ method: 'BANK_TRANSFER', invoiceRef: '', amount: null, reference: '' });
     this.isRecordPaymentOpen = true;
   }
 
   closeRecordPayment(): void {
     this.isRecordPaymentOpen = false;
+  }
+
+  /** Extract numeric invoice id from user input like "INV-42", "inv 42", or plain "42". */
+  private parseInvoiceId(raw: string): number | null {
+    const digits = (raw ?? '').toString().match(/\d+/);
+    return digits ? Number(digits[0]) : null;
   }
 
   submitRecordPayment(): void {
@@ -584,24 +600,24 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
       return;
     }
     const v = this.recordPaymentForm.value;
-    const nextId = 'PAY-' + (77341 + this.payments.length + 1);
-    this.payments = [
-      {
-        paymentId: nextId,
-        invoiceRef: v.invoiceRef,
-        accountId: '—',
-        customer: v.customer,
-        amount: Number(v.amount),
-        method: v.method,
-        date: new Date().toISOString().slice(0, 10),
-        reference: v.reference,
-        status: v.method === 'Cheque' ? 'Cleared' : 'Confirmed'
+    const invoiceId = this.parseInvoiceId(v.invoiceRef);
+    if (invoiceId == null) {
+      this.toastService.error('Invalid invoice reference — expected format like INV-42.');
+      return;
+    }
+    this.billingService.payInvoice(invoiceId, {
+      amountPaid: Number(v.amount),
+      paymentMethod: v.method,
+      transactionRef: v.reference
+    }).subscribe({
+      next: () => {
+        this.iamService.recordAudit('PAYMENT_RECORDED', 'BILLING');
+        this.toastService.success(`Payment recorded for INV-${invoiceId} (${this.inr(Number(v.amount))}).`);
+        this.isRecordPaymentOpen = false;
+        this.loadFromBackend();
       },
-      ...this.payments
-    ];
-    this.iamService.recordAudit('PAYMENT_RECORDED', 'BILLING');
-    this.toastService.success('Payment ' + nextId + ' recorded (' + this.inr(Number(v.amount)) + ').');
-    this.isRecordPaymentOpen = false;
+      error: (err) => this.toastService.error(err?.error?.message || 'Failed to record payment.')
+    });
   }
 
   exportPayments(): void {

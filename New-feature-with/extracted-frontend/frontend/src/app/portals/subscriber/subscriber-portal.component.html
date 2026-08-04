@@ -109,8 +109,30 @@
   <main class="flex-grow flex flex-col min-w-0 overflow-y-auto">
     <!-- Header -->
     <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-sm relative z-30">
-      <div>
-        <h2 class="text-lg font-bold text-slate-800 tracking-tight capitalize">{{ activeTab() }} Portal</h2>
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-md shrink-0">
+          <svg *ngIf="activeTab() === 'plan'" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          <svg *ngIf="activeTab() === 'usage'" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2zm9 0v-8a2 2 0 00-2-2h-2a2 2 0 00-2 2v8a2 2 0 002 2h2a2 2 0 002-2z"/></svg>
+          <svg *ngIf="activeTab() === 'billing'" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+          <svg *ngIf="activeTab() === 'support'" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <svg *ngIf="activeTab() === 'notifications'" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-slate-800 tracking-tight leading-tight">
+            <span *ngIf="activeTab() === 'plan'">Plan Details</span>
+            <span *ngIf="activeTab() === 'usage'">Usage Tracking</span>
+            <span *ngIf="activeTab() === 'billing'">Bills &amp; Invoices</span>
+            <span *ngIf="activeTab() === 'support'">Support Centre</span>
+            <span *ngIf="activeTab() === 'notifications'">Notifications</span>
+          </h2>
+          <p class="text-[11px] text-slate-400 font-light leading-tight">
+            <span *ngIf="activeTab() === 'plan'">Manage your active plan, add-ons and browse the catalog</span>
+            <span *ngIf="activeTab() === 'usage'">Data, voice and SMS consumption at a glance</span>
+            <span *ngIf="activeTab() === 'billing'">Invoices, payments and receipts</span>
+            <span *ngIf="activeTab() === 'support'">Raise service requests and report faults</span>
+            <span *ngIf="activeTab() === 'notifications'">Alerts, updates and account activity</span>
+          </p>
+        </div>
       </div>
 
       <div class="flex items-center gap-4">
@@ -204,7 +226,7 @@
           <div>
             <span class="px-3 py-1 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-wider mb-3 inline-block">Active Plan Subscription</span>
             <h3 class="text-3xl font-extrabold tracking-tight mb-2">{{ account360?.lines?.[0]?.activeSubscription?.plan?.name || 'Starter Plan' }}</h3>
-            <p class="text-indigo-200 text-sm font-light">Mobile Number: <strong class="text-white">{{ account360?.lines?.[0]?.msisdn | phoneNumber }}</strong> &nbsp;·&nbsp; Validity: {{ account360?.lines?.[0]?.activeSubscription?.plan?.validityDays }} Days</p>
+            <p class="text-indigo-200 text-sm font-light">Mobile Number: <strong class="text-white">{{ (user?.phone || account360?.subscriber?.phone || account360?.lines?.[0]?.msisdn) | phoneNumber }}</strong> &nbsp;·&nbsp; Validity: {{ account360?.lines?.[0]?.activeSubscription?.plan?.validityDays }} Days</p>
           </div>
           <div class="text-left md:text-right shrink-0">
             <p class="text-4xl font-extrabold">₹{{ account360?.lines?.[0]?.activeSubscription?.plan?.planPrice }}<span class="text-xs text-indigo-300 font-light">/cycle</span></p>
@@ -610,12 +632,48 @@
       <!-- ========================================== -->
       <!-- TAB: INVOICES HISTORY                      -->
       <!-- ========================================== -->
-      <div *ngIf="activeTab() === 'billing'" [@fadeInUp] class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div *ngIf="activeTab() === 'billing'" [@fadeInUp] class="flex flex-col gap-6">
+
+        <!-- Hero banner -->
+        <div class="bg-gradient-to-br from-primary-700 to-indigo-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+          <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
+          <div class="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div>
+              <span class="px-3 py-1 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-wider mb-3 inline-flex items-center gap-1.5">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
+                Billing Overview
+              </span>
+              <h3 class="text-2xl font-extrabold tracking-tight mb-1">Your bills at a glance</h3>
+              <p class="text-sky-100 text-sm font-light">All invoices, payments and receipts in one place.</p>
+            </div>
+            <div class="grid grid-cols-3 gap-4 shrink-0">
+              <div class="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center min-w-[90px]">
+                <p class="text-[10px] uppercase tracking-wider text-sky-100 font-semibold">Total</p>
+                <p class="text-lg font-extrabold mt-0.5">{{ myInvoices.length }}</p>
+              </div>
+              <div class="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center min-w-[90px]">
+                <p class="text-[10px] uppercase tracking-wider text-sky-100 font-semibold">Paid</p>
+                <p class="text-lg font-extrabold mt-0.5">{{ paidInvoicesCount }}</p>
+              </div>
+              <div class="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center min-w-[90px]">
+                <p class="text-[10px] uppercase tracking-wider text-sky-100 font-semibold">Open</p>
+                <p class="text-lg font-extrabold mt-0.5">{{ openInvoicesCount }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Invoice list card -->
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-          <h3 class="text-base font-bold text-slate-800 tracking-tight">Invoice Billing Records</h3>
+          <h3 class="text-base font-bold text-slate-800 tracking-tight flex items-center gap-2">
+            <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Invoice Billing Records
+          </h3>
           <div class="flex items-center gap-3">
             <span class="text-xs text-slate-400">Total bills: {{ myInvoices.length }}</span>
-            <button (click)="loadInvoices()" class="text-xs font-semibold text-primary-600 hover:text-primary-800 px-3 py-1.5 rounded-lg bg-primary-50 hover:bg-primary-100 transition cursor-pointer">
+            <button (click)="loadInvoices()" class="text-xs font-semibold text-primary-600 hover:text-primary-800 px-3 py-1.5 rounded-lg bg-primary-50 hover:bg-primary-100 transition cursor-pointer flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
               Refresh
             </button>
           </div>
@@ -700,32 +758,50 @@
           </table>
         </div>
         <app-paginator [total]="myInvoices.length" [page]="invoicesPage" [size]="pageSize" (pageChange)="invoicesPage = $event"></app-paginator>
+        </div>
       </div>
 
       <!-- ========================================== -->
       <!-- TAB: SUPPORT CENTRE & SERVICE REQUESTS     -->
       <!-- ========================================== -->
       <div *ngIf="activeTab() === 'support'" [@fadeInUp] class="flex flex-col gap-6">
-        <!-- Top CTAs — open the matching form panel -->
-        <div class="flex flex-wrap gap-3">
+
+        <!-- Hero banner -->
+        <div class="bg-gradient-to-br from-primary-700 to-indigo-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+          <div class="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
+          <div class="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+              </div>
+              <div>
+                <span class="px-3 py-1 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-wider mb-2 inline-block">Support Centre</span>
+                <h3 class="text-2xl font-extrabold tracking-tight">How can we help you today?</h3>
+                <p class="text-sky-100 text-sm font-light mt-1">Raise a service request or report a network fault — we usually respond within a few hours.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top CTA — opens the service-request form panel -->
+        <div>
           <button (click)="openRequestModal()"
-            class="px-4 py-2.5 font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-1.5"
-            [ngClass]="isRequestModalOpen ? 'bg-sky-700 text-white' : 'bg-sky-600 text-white hover:bg-sky-700'">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-            Raise service request
-          </button>
-          <button (click)="openTicketModal()"
-            class="px-4 py-2.5 font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-1.5"
-            [ngClass]="isTicketModalOpen ? 'bg-black text-white' : 'bg-slate-900 text-white hover:bg-slate-800'">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-2.99l-6.93-12a2 2 0 00-3.48 0l-6.93 12A2 2 0 005.07 19z"/></svg>
-            Report a fault
+            class="group text-left p-5 rounded-2xl border-2 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer flex items-start gap-4 w-full sm:max-w-md"
+            [ngClass]="isRequestModalOpen ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-white hover:border-sky-300'">
+            <div class="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition"
+              [ngClass]="isRequestModalOpen ? 'bg-sky-600 text-white' : 'bg-sky-100 text-sky-700 group-hover:bg-sky-200'">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            </div>
+            <div>
+              <p class="font-bold text-slate-800">Raise service request</p>
+              <p class="text-xs text-slate-500 mt-0.5">Plan change, SIM replacement, porting or account updates.</p>
+            </div>
           </button>
         </div>
 
-        <!-- Form panels (shown when a button is clicked) -->
-        <div *ngIf="isRequestModalOpen || isTicketModalOpen" class="grid md:grid-cols-2 gap-6">
-          <!-- Raise service request -->
-          <div *ngIf="isRequestModalOpen" [@fadeInUp] class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" [formGroup]="newRequestForm">
+        <!-- Form panel (shown when the button is clicked) -->
+        <div *ngIf="isRequestModalOpen">
+          <div [@fadeInUp] class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm sm:max-w-2xl" [formGroup]="newRequestForm">
             <h3 class="text-base font-bold text-slate-800 mb-4">Raise service request</h3>
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">Request type</label>
             <select formControlName="requestType" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 mb-4">
@@ -734,46 +810,16 @@
               <option value="PortingRequest">Porting request</option>
               <option value="AccountUpdate">Account update</option>
             </select>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Line</label>
-            <select formControlName="lineId" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 mb-4">
-              <option [ngValue]="null">Your number</option>
-              <option *ngFor="let l of account360?.lines" [ngValue]="l.lineId">{{ l.msisdn | phoneNumber }}</option>
-            </select>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Mobile number</label>
+            <input formControlName="mobileNumber" type="tel" inputmode="numeric" maxlength="15"
+                   placeholder="Enter your 10-digit mobile number"
+                   class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 mb-4" />
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">Details</label>
             <textarea formControlName="additionalDetails" rows="3" placeholder="e.g. move me to the 599 postpaid plan"
               class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 resize-none"></textarea>
             <div class="flex justify-end gap-2 mt-4">
               <button type="button" (click)="closeRequestModal()" class="px-4 py-2 text-sm font-semibold text-slate-600 rounded-xl hover:bg-slate-100">Cancel</button>
               <button type="button" (click)="submitServiceRequest()" [disabled]="isSubmittingRequest || newRequestForm.invalid" class="px-4 py-2 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl disabled:opacity-60">{{ isSubmittingRequest ? 'Submitting…' : 'Submit request' }}</button>
-            </div>
-          </div>
-
-          <!-- Report a fault -->
-          <div *ngIf="isTicketModalOpen" [@fadeInUp] class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" [formGroup]="newTicketForm">
-            <h3 class="text-base font-bold text-slate-800 mb-4">Report a fault</h3>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Fault type</label>
-            <select formControlName="faultType" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 mb-4">
-              <option value="NoCoverage">No coverage</option>
-              <option value="CallDrops">Call drops</option>
-              <option value="SlowData">Slow data</option>
-              <option value="BillingIssue">Billing issue</option>
-              <option value="Activation">Activation</option>
-            </select>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Affected line (optional)</label>
-            <select formControlName="lineId" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 mb-4">
-              <option [ngValue]="null">Your number</option>
-              <option *ngFor="let l of account360?.lines" [ngValue]="l.lineId">{{ l.msisdn | phoneNumber }}</option>
-            </select>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Describe the issue</label>
-            <textarea formControlName="description" rows="3" placeholder="e.g. no signal at home since morning"
-              class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 resize-none"></textarea>
-            <p class="text-xs text-sky-600 mt-2 flex items-center gap-1.5">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              No priority field — our team sets urgency
-            </p>
-            <div class="flex justify-end gap-2 mt-4">
-              <button type="button" (click)="closeTicketModal()" class="px-4 py-2 text-sm font-semibold text-slate-600 rounded-xl hover:bg-slate-100">Cancel</button>
-              <button type="button" (click)="submitFaultTicket()" [disabled]="isSubmittingTicket || newTicketForm.invalid" class="px-4 py-2 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl disabled:opacity-60">{{ isSubmittingTicket ? 'Submitting…' : 'Report fault' }}</button>
             </div>
           </div>
         </div>
@@ -806,34 +852,36 @@
           <app-paginator [total]="serviceRequests.length" [page]="requestsPage" [size]="pageSize" (pageChange)="requestsPage = $event"></app-paginator>
         </div>
 
-        <!-- My fault tickets -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-2.99l-6.93-12a2 2 0 00-3.48 0l-6.93 12A2 2 0 005.07 19z"/></svg>
-            My fault tickets
-          </h3>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead><tr class="text-left text-[11px] font-semibold tracking-wider text-slate-400 uppercase border-b border-slate-100">
-                <th class="px-3 py-2.5">Ticket</th><th class="px-3 py-2.5">Issue</th><th class="px-3 py-2.5">Raised on</th><th class="px-3 py-2.5">Status</th>
-              </tr></thead>
-              <tbody>
-                <tr *ngFor="let t of (myTickets | paginate: ticketsPage : pageSize)" class="border-b border-slate-50">
-                  <td class="px-3 py-3 font-medium text-slate-700">FT-{{ t.ticketId ?? t.id }}</td>
-                  <td class="px-3 py-3 text-slate-600">{{ t.faultType }}</td>
-                  <td class="px-3 py-3 text-slate-500">{{ t.raisedDate | date:'mediumDate' }}</td>
-                  <td class="px-3 py-3"><span class="px-2.5 py-0.5 rounded-full text-xs font-semibold" [ngClass]="statusBadgeClass(ticketStatusLabel(t.status))">{{ ticketStatusLabel(t.status) }}</span></td>
-                </tr>
-                <tr *ngIf="myTickets.length === 0"><td colspan="4" class="px-3 py-8 text-center text-slate-400 font-light">No fault tickets yet.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <app-paginator [total]="myTickets.length" [page]="ticketsPage" [size]="pageSize" (pageChange)="ticketsPage = $event"></app-paginator>
-        </div>
       </div>
 
       <!-- ============= NOTIFICATIONS ============= -->
       <div *ngIf="activeTab() === 'notifications'" [@fadeInUp] class="flex flex-col gap-5">
+
+        <!-- Hero banner -->
+        <div class="bg-gradient-to-br from-primary-700 to-indigo-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+          <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
+          <div class="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <svg [@shake]="notificationService.unreadCount() > 0 ? 'shake' : ''" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              </div>
+              <div>
+                <span class="px-3 py-1 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-wider mb-2 inline-block">Inbox</span>
+                <h3 class="text-2xl font-extrabold tracking-tight">Stay in the loop</h3>
+                <p class="text-sky-100 text-sm font-light mt-1">
+                  <span *ngIf="notificationService.unreadCount() > 0">You have <strong class="text-white">{{ notificationService.unreadCount() }}</strong> unread {{ notificationService.unreadCount() === 1 ? 'alert' : 'alerts' }}.</span>
+                  <span *ngIf="notificationService.unreadCount() === 0">You're all caught up.</span>
+                </p>
+              </div>
+            </div>
+            <button *ngIf="notificationService.unreadCount() > 0" (click)="markAllNotifRead()"
+              class="px-4 py-2 text-xs font-semibold text-sky-800 bg-white hover:bg-sky-50 rounded-xl cursor-pointer transition shadow-md shrink-0 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              Mark all read
+            </button>
+          </div>
+        </div>
+
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <!-- Header -->
           <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">

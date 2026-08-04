@@ -117,6 +117,16 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   // Invoices & Payments
   myInvoices: any[] = [];
   activeInvoiceDetail: number | null = null;
+
+  get paidInvoicesCount(): number {
+    return this.myInvoices.filter(i => (i?.status ?? '').toString().toUpperCase() === 'PAID').length;
+  }
+  get openInvoicesCount(): number {
+    return this.myInvoices.filter(i => {
+      const s = (i?.status ?? '').toString().toUpperCase();
+      return s !== 'PAID';
+    }).length;
+  }
   isDisputeModalOpen = false;
   disputeForm!: FormGroup;
   disputingInvoiceId: number | null = null;
@@ -226,6 +236,11 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
     // Account chain: IAM user → accounts → SIM lines → subscriptions
     this.iamService.getMe().subscribe({
       next: (iamUser) => {
+        // Sync the local user snapshot with the freshest IAM data (phone/email/name may
+        // be missing on the currentUser() signal captured at login).
+        if (this.user) {
+          this.user = { ...this.user, phone: iamUser.phone ?? this.user.phone, name: iamUser.name ?? this.user.name, email: iamUser.email ?? this.user.email };
+        }
         this.accountService.getAccountsBySubscriberId(iamUser.userId).subscribe({
           next: (result) => {
             const accounts: any[] = result ?? [];
@@ -278,7 +293,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
 
     this.newRequestForm = this.fb.group({
       requestType: ['PlanChange', Validators.required],
-      lineId: [null],
+      mobileNumber: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
       additionalDetails: ['', Validators.required]
     });
 
@@ -1085,14 +1100,26 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   // ==========================================
   // Support Request Creation
   // ==========================================
+  /** Best-effort default for the mobile number field: user profile → subscriber → line MSISDN, all stripped to digits. */
+  private defaultMobileNumber(): string {
+    const raw = this.user?.phone
+      ?? this.account360?.subscriber?.phone
+      ?? this.account360?.lines?.[0]?.msisdn
+      ?? '';
+    return String(raw).replace(/\D/g, '').slice(-10);
+  }
+
   openRequestModal(): void {
     this.isRequestModalOpen = !this.isRequestModalOpen;   // toggle open/close
     this.isTicketModalOpen = false;                       // only one form at a time
+    if (this.isRequestModalOpen) {
+      this.newRequestForm.patchValue({ mobileNumber: this.defaultMobileNumber() });
+    }
   }
 
   closeRequestModal(): void {
     this.isRequestModalOpen = false;
-    this.newRequestForm.reset({ requestType: 'PlanChange', lineId: null, additionalDetails: '' });
+    this.newRequestForm.reset({ requestType: 'PlanChange', mobileNumber: this.defaultMobileNumber(), additionalDetails: '' });
   }
 
   submitServiceRequest(): void {
@@ -1101,7 +1128,11 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
       return;
     }
     const v = this.newRequestForm.value;
-    const lineId = v.lineId ?? this.account360.lines?.[0]?.lineId ?? null;
+    const lineId = this.account360.lines?.[0]?.lineId ?? null;
+    const mobileNumber = String(v.mobileNumber ?? '').replace(/\D/g, '');
+    const detailsWithMobile = mobileNumber
+      ? `[Mobile: ${mobileNumber}] ${v.additionalDetails}`
+      : v.additionalDetails;
     this.isSubmittingRequest = true;
     this.ticketService.createRequest({
       accountId: this.account360.accountId,
@@ -1110,14 +1141,14 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
       requestedBy: this.user?.id,
       raisedDate: new Date().toISOString().split('T')[0],
       status: 'Open',
-      additionalDetails: v.additionalDetails
+      additionalDetails: detailsWithMobile
     }).subscribe({
       next: () => {
         this.isSubmittingRequest = false;
         this.iamService.recordAudit('SERVICE_REQUEST_SUBMITTED', 'FAULT');
         this.pushNotification(this.user?.id, `Your service request (${v.requestType}) has been submitted — our support team will pick it up.`, 'PLAN');
         this.toastService.success('Service request raised — our support team will pick it up.');
-        this.newRequestForm.reset({ requestType: 'PlanChange', lineId: null, additionalDetails: '' });
+        this.newRequestForm.reset({ requestType: 'PlanChange', mobileNumber: this.defaultMobileNumber(), additionalDetails: '' });
         this.isRequestModalOpen = false;
         this.loadServiceRequests();
         this.notificationService.refreshNotifications();

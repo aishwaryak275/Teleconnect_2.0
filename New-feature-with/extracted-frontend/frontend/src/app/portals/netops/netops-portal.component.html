@@ -249,23 +249,28 @@
               </div>
 
               <!-- Move Actions -->
-              <div class="flex justify-between items-center pt-2 border-t border-slate-100">
-                <button 
-                  *ngIf="col !== 'Resolved' && col !== 'Closed'"
+              <!-- Open: assign-only (the Assignee dropdown above moves it to InProgress). -->
+              <!-- InProgress: can Resolve or Escalate. -->
+              <!-- Escalated: can Resolve. -->
+              <!-- Resolved: Close only. -->
+              <!-- Closed: no actions. -->
+              <div *ngIf="col !== 'Open' && col !== 'Closed'" class="flex justify-between items-center pt-2 border-t border-slate-100">
+                <button
+                  *ngIf="col === 'InProgress' || col === 'Escalated'"
                   (click)="moveTicket(t.id, 'Resolved')"
                   class="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[9px] font-bold cursor-pointer"
                 >
                   Resolve
                 </button>
-                <button 
+                <button
                   *ngIf="col === 'Resolved'"
                   (click)="moveTicket(t.id, 'Closed')"
                   class="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded text-[9px] font-bold cursor-pointer"
                 >
                   Close
                 </button>
-                <button 
-                  *ngIf="col !== 'Escalated' && col !== 'Closed'"
+                <button
+                  *ngIf="col === 'InProgress'"
                   (click)="moveTicket(t.id, 'Escalated')"
                   class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-[9px] font-bold cursor-pointer"
                 >
