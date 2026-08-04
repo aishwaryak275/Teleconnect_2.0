@@ -224,6 +224,10 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
     }
   }
 
+  markAllNotificationsRead(): void {
+    this.notificationService.markAllAsRead().subscribe(() => this.iamService.recordAudit('MARK_ALL_NOTIFICATIONS_READ', 'NOTIFICATION'));
+  }
+
   @HostListener('document:click')
   onDocumentClick(): void {
     this.isNotificationOpen.set(false);
@@ -290,7 +294,7 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
     const code = this.statusCode[status] ?? status;
     this.ticketService.updateFaultStatus(ticketId, code).subscribe({
       next: () => {
-        this.iamService.recordAudit('TICKET_STATUS_UPDATED', 'NETOPS');
+        this.iamService.recordAudit('TICKET_STATUS_UPDATED', 'FAULT');
         this.toastService.success(`Ticket #${ticketId} status updated to ${status}.`);
         this.loadTickets();
       },
@@ -308,7 +312,7 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
     const shouldStart = !ticket || ticket.status === 'Open';
     this.ticketService.assignTicket(ticketId, engineerId).subscribe({
       next: () => {
-        this.iamService.recordAudit('TICKET_ASSIGNED', 'NETOPS');
+        this.iamService.recordAudit('TICKET_ASSIGNED', 'FAULT');
         if (shouldStart) {
           // Assigning an open ticket starts work on it → move to the InProgress column.
           this.ticketService.updateFaultStatus(ticketId, this.statusCode['InProgress']).subscribe({
@@ -407,7 +411,7 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
     const endStr = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
     const uid = this.authService.currentUser()?.id;
     this.reportService.generateReport({ scope: 'PERIOD', scopeValue: 'Network SLA', periodStart: start, periodEnd: endStr, generatedBy: uid }).subscribe({
-      next: () => { this.iamService.recordAudit('SLA_REPORT_GENERATED','NETOPS'); this.toastService.success('SLA report sent to Compliance for review.'); },
+      next: () => { this.iamService.recordAudit('SLA_REPORT_GENERATED','ANALYTICS'); this.toastService.success('SLA report sent to Compliance for review.'); },
       error: () => this.toastService.error('Failed to generate SLA report.')
     });
   }
@@ -417,7 +421,7 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
 
     this.ticketService.updateFaultStatus(this.escalatingTicket.id, 'Escalated', this.escalationReasonText).subscribe({
       next: () => {
-        this.iamService.recordAudit('TICKET_ESCALATED', 'NETOPS');
+        this.iamService.recordAudit('TICKET_ESCALATED', 'FAULT');
         this.toastService.success(`Ticket #${this.escalatingTicket.id} escalated successfully.`);
         this.closeEscalateModal();
         this.loadTickets();

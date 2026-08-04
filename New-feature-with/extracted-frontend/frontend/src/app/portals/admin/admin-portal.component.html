@@ -135,7 +135,7 @@
           <div *ngIf="isNotificationOpen()" [@scaleIn] class="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50 py-1">
             <div class="px-4 py-2.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <span class="font-bold text-xs text-slate-700">Notifications</span>
-              <button (click)="notificationService.markAllAsRead()" class="text-[10px] font-semibold text-primary-700 hover:underline cursor-pointer">Mark all read</button>
+              <button (click)="markAllNotificationsRead()" class="text-[10px] font-semibold text-primary-700 hover:underline cursor-pointer">Mark all read</button>
             </div>
             <div class="max-h-64 overflow-y-auto">
               <div *ngIf="notificationService.notifications().length === 0" class="p-6 text-center text-slate-400 text-xs">No notifications</div>
@@ -825,7 +825,7 @@
                 class="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <div>
                   <div class="flex items-center gap-2 mb-1">
-                    <p class="text-base font-bold text-slate-800 font-mono">{{ line.msisdn }}</p>
+                    <p class="text-base font-bold text-slate-800 font-mono">{{ line.msisdn | phoneNumber }}</p>
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold"
                       [class.bg-emerald-100]="line.status === 'Active'"
                       [class.text-emerald-700]="line.status === 'Active'"
@@ -902,10 +902,14 @@
               <select [(ngModel)]="filterAuditModule" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400">
                 <option value="">All Modules</option>
                 <option value="IAM">IAM</option>
-                <option value="PLAN">PLAN</option>
-                <option value="BILLING">BILLING</option>
-                <option value="USAGE">USAGE</option>
                 <option value="SUBSCRIBER">SUBSCRIBER</option>
+                <option value="PLAN">PLAN</option>
+                <option value="USAGE">USAGE</option>
+                <option value="BILLING">BILLING</option>
+                <option value="NOTIFICATION">NOTIFICATION</option>
+                <option value="FAULT">FAULT</option>
+                <option value="ANALYTICS">ANALYTICS</option>
+                <option value="COMPLIANCE">COMPLIANCE</option>
               </select>
             </div>
             <div class="flex items-end gap-2">
@@ -1541,7 +1545,7 @@
     <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
       <div>
         <h2 class="text-base font-bold text-slate-800">{{ isChangePlan() ? 'Change Plan' : 'Assign Plan' }}</h2>
-        <p class="text-xs text-slate-400 font-light mt-0.5">Line #{{ provisionLine?.lineId }} — MSISDN: {{ provisionLine?.msisdn }}</p>
+        <p class="text-xs text-slate-400 font-light mt-0.5">Line #{{ provisionLine?.lineId }} — MSISDN: {{ provisionLine?.msisdn | phoneNumber }}</p>
       </div>
       <button (click)="closePlanProvision360()" class="text-slate-400 hover:text-slate-700 cursor-pointer">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>

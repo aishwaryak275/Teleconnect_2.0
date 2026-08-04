@@ -204,7 +204,7 @@
           <div>
             <span class="px-3 py-1 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-wider mb-3 inline-block">Active Plan Subscription</span>
             <h3 class="text-3xl font-extrabold tracking-tight mb-2">{{ account360?.lines?.[0]?.activeSubscription?.plan?.name || 'Starter Plan' }}</h3>
-            <p class="text-indigo-200 text-sm font-light">Mobile Number: <strong class="text-white">+91-{{ account360?.lines?.[0]?.msisdn }}</strong> &nbsp;·&nbsp; Validity: {{ account360?.lines?.[0]?.activeSubscription?.plan?.validityDays }} Days</p>
+            <p class="text-indigo-200 text-sm font-light">Mobile Number: <strong class="text-white">{{ account360?.lines?.[0]?.msisdn | phoneNumber }}</strong> &nbsp;·&nbsp; Validity: {{ account360?.lines?.[0]?.activeSubscription?.plan?.validityDays }} Days</p>
           </div>
           <div class="text-left md:text-right shrink-0">
             <p class="text-4xl font-extrabold">₹{{ account360?.lines?.[0]?.activeSubscription?.plan?.planPrice }}<span class="text-xs text-indigo-300 font-light">/cycle</span></p>
@@ -737,7 +737,7 @@
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">Line</label>
             <select formControlName="lineId" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 mb-4">
               <option [ngValue]="null">Your number</option>
-              <option *ngFor="let l of account360?.lines" [ngValue]="l.lineId">{{ l.msisdn }}</option>
+              <option *ngFor="let l of account360?.lines" [ngValue]="l.lineId">{{ l.msisdn | phoneNumber }}</option>
             </select>
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">Details</label>
             <textarea formControlName="additionalDetails" rows="3" placeholder="e.g. move me to the 599 postpaid plan"
@@ -762,7 +762,7 @@
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">Affected line (optional)</label>
             <select formControlName="lineId" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 mb-4">
               <option [ngValue]="null">Your number</option>
-              <option *ngFor="let l of account360?.lines" [ngValue]="l.lineId">{{ l.msisdn }}</option>
+              <option *ngFor="let l of account360?.lines" [ngValue]="l.lineId">{{ l.msisdn | phoneNumber }}</option>
             </select>
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">Describe the issue</label>
             <textarea formControlName="description" rows="3" placeholder="e.g. no signal at home since morning"

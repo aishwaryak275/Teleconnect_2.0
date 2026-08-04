@@ -16,11 +16,12 @@ import { fadeInUp, staggerFadeIn, shake, scaleIn } from '../../shared/animations
 import { MyAccountModalComponent } from '../../shared/my-account-modal/my-account-modal.component';
 import { PaginatePipe } from '../../shared/pagination/paginate.pipe';
 import { PaginatorComponent } from '../../shared/pagination/paginator.component';
+import { PhoneNumberPipe } from '../../shared/phone-number.pipe';
 
 @Component({
   selector: 'app-subscriber-portal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, MyAccountModalComponent, PaginatePipe, PaginatorComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, MyAccountModalComponent, PaginatePipe, PhoneNumberPipe, PaginatorComponent],
   templateUrl: './subscriber-portal.component.html',
   styleUrls: ['./subscriber-portal.component.css'],
   animations: [fadeInUp, staggerFadeIn, shake, scaleIn]
@@ -549,7 +550,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   markNotifRead(n: any): void {
-    if (this.isUnread(n)) this.notificationService.markAsRead(n.notificationId).subscribe();
+    if (this.isUnread(n)) this.notificationService.markAsRead(n.notificationId).subscribe(() => this.iamService.recordAudit('MARK_NOTIFICATION_READ', 'NOTIFICATION'));
   }
 
   dismissNotif(n: any): void {
@@ -557,7 +558,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   markAllNotifRead(): void {
-    this.notificationService.markAllAsRead().subscribe();
+    this.notificationService.markAllAsRead().subscribe(() => this.iamService.recordAudit('MARK_ALL_NOTIFICATIONS_READ', 'NOTIFICATION'));
   }
 
   /** Fire-and-forget: raise a notification for a subscriber (recipient userId). */
@@ -702,8 +703,8 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
 
   private createSimLineAndActivate(accountId: number): void {
     const msisdn = this.user.phone?.replace(/\D/g, '').slice(-10)
-      ? `+91${this.user.phone.replace(/\D/g, '').slice(-10)}`
-      : `+9198${String(accountId).padStart(4, '0')}${String(Date.now()).slice(-4)}`;
+      ? this.user.phone.replace(/\D/g, '').slice(-10)
+      : `98${String(accountId).padStart(4, '0')}${String(Date.now()).slice(-4)}`;
     const iccid = `8991000${String(accountId).padStart(4, '0')}${String(Date.now()).slice(-8)}`;
 
     this.accountService.addLine(accountId, {
@@ -751,7 +752,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
     }).subscribe({
       next: () => {
         this.isProcessingPayment = false;
-        this.iamService.recordAudit('PLAN_ACTIVATED', 'SUBSCRIBER');
+        this.iamService.recordAudit('PLAN_ACTIVATED', 'PLAN');
         this.pushNotification(this.user?.id, `Your ${this.targetPlan.name} plan is now active.`, 'PLAN');
         this.toastService.success(
           `${this.targetPlan.name} activated! ₹${totalAmount.toFixed(0)} paid via ${paymentMethod}.`
@@ -952,7 +953,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
 
     this.planService.updateSubscription(sub.subscriptionId, { addOnId: addOn.addOnId }).subscribe({
       next: () => {
-        this.iamService.recordAudit('ADDON_ACTIVATED', 'SUBSCRIBER');
+        this.iamService.recordAudit('ADDON_ACTIVATED', 'PLAN');
         this.pushNotification(this.user?.id, `Your ${addOn.name} add-on is now active.`, 'PLAN');
         this.toastService.success(`${addOn.name} add-on activated!`);
         this.closeAddOnModal();
@@ -1113,7 +1114,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
     }).subscribe({
       next: () => {
         this.isSubmittingRequest = false;
-        this.iamService.recordAudit('SERVICE_REQUEST_SUBMITTED', 'SUBSCRIBER');
+        this.iamService.recordAudit('SERVICE_REQUEST_SUBMITTED', 'FAULT');
         this.pushNotification(this.user?.id, `Your service request (${v.requestType}) has been submitted — our support team will pick it up.`, 'PLAN');
         this.toastService.success('Service request raised — our support team will pick it up.');
         this.newRequestForm.reset({ requestType: 'PlanChange', lineId: null, additionalDetails: '' });
@@ -1134,7 +1135,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
     if (!id) return;
     this.ticketService.cancelRequest(id).subscribe({
       next: () => {
-        this.iamService.recordAudit('SERVICE_REQUEST_CANCELLED', 'SUBSCRIBER');
+        this.iamService.recordAudit('SERVICE_REQUEST_CANCELLED', 'FAULT');
         this.toastService.success('Service request cancelled.');
         this.loadServiceRequests();
       },
@@ -1170,7 +1171,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
     }).subscribe({
       next: () => {
         this.isSubmittingTicket = false;
-        this.iamService.recordAudit('FAULT_TICKET_SUBMITTED', 'SUBSCRIBER');
+        this.iamService.recordAudit('FAULT_TICKET_SUBMITTED', 'FAULT');
         this.pushNotification(this.user?.id, `Your fault report (${v.faultType}) has been logged and routed to Network Ops.`, 'FAULT');
         this.toastService.success('Fault reported — routed to Network Ops.');
         this.newTicketForm.reset({ faultType: 'NoCoverage', lineId: null, description: '' });

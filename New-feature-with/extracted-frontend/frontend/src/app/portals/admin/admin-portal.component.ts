@@ -14,11 +14,12 @@ import { MyAccountModalComponent } from '../../shared/my-account-modal/my-accoun
 import { AnalyticsPanelComponent } from '../../shared/analytics/analytics-panel.component';
 import { PaginatePipe } from '../../shared/pagination/paginate.pipe';
 import { PaginatorComponent } from '../../shared/pagination/paginator.component';
+import { PhoneNumberPipe } from '../../shared/phone-number.pipe';
 
 @Component({
   selector: 'app-admin-portal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, MyAccountModalComponent, AnalyticsPanelComponent, PaginatePipe, PaginatorComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, MyAccountModalComponent, AnalyticsPanelComponent, PaginatePipe, PhoneNumberPipe, PaginatorComponent],
   templateUrl: './admin-portal.component.html',
   styleUrls: ['./admin-portal.component.css'],
   animations: [fadeInUp, staggerFadeIn, shake, scaleIn]
@@ -307,6 +308,10 @@ export class AdminPortalComponent implements OnInit {
   toggleNotifications(): void {
     this.isNotificationOpen.set(!this.isNotificationOpen());
     if (this.isNotificationOpen()) this.notificationService.refreshNotifications();
+  }
+
+  markAllNotificationsRead(): void {
+    this.notificationService.markAllAsRead().subscribe(() => this.iamService.recordAudit('MARK_ALL_NOTIFICATIONS_READ', 'NOTIFICATION'));
   }
 
   logout(): void { this.authService.logout(); }
@@ -1140,7 +1145,7 @@ export class AdminPortalComponent implements OnInit {
     const createNew = (withInvoice: boolean) => {
       this.planService.createSubscription({ lineId, planId, addOnId, activationDate, expiryDate, renewalType: 'AutoRenew', status: 'A' }).subscribe({
         next: () => {
-          this.iamService.recordAudit(this.isChangePlan() ? 'PLAN_CHANGED' : 'PLAN_PROVISIONED', 'ADMIN');
+          this.iamService.recordAudit(this.isChangePlan() ? 'PLAN_CHANGED' : 'PLAN_PROVISIONED', 'PLAN');
           this.pushNotification(this.selected360Account?.subscriberId ?? this.selected360Account?.subscriber?.userId, `Your plan "${planName}"${addOnId ? ' with an add-on' : ''} is now active.`, 'PLAN');
           this.toastService.success(this.isChangePlan() ? `Plan changed to "${planName}" successfully!` : `Plan "${planName}" provisioned successfully!`);
           if (withInvoice && accountId) this.autoCreateInvoice360(accountId, planPrice, addOnPrice, activationDate, expiryDate);

@@ -367,6 +367,10 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
     }
   }
 
+  markAllNotificationsRead(): void {
+    this.notificationService.markAllAsRead().subscribe(() => this.iamService.recordAudit('MARK_ALL_NOTIFICATIONS_READ', 'NOTIFICATION'));
+  }
+
   toggleSidebar(): void {
     this.isSidebarCollapsed.set(!this.isSidebarCollapsed());
   }
@@ -868,7 +872,7 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
     const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
     const uid = this.authService.currentUser()?.id;
     this.reportService.generateReport({ scope: 'PERIOD', scopeValue: 'Billing & Collections', periodStart: start, periodEnd: endStr, generatedBy: uid }).subscribe({
-      next: () => { this.iamService.recordAudit('BILLING_REPORT_GENERATED', 'BILLING'); this.toastService.success('Report sent to Compliance for review.'); },
+      next: () => { this.iamService.recordAudit('BILLING_REPORT_GENERATED', 'ANALYTICS'); this.toastService.success('Report sent to Compliance for review.'); },
       error: () => this.toastService.error('Failed to generate report.')
     });
   }

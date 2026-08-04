@@ -125,7 +125,7 @@
           <div *ngIf="isNotificationOpen()" [@scaleIn] class="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50 py-1">
             <div class="px-4 py-2.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <span class="font-bold text-xs text-slate-700">Notifications</span>
-              <button (click)="notificationService.markAllAsRead()" class="text-[10px] font-semibold text-primary-700 hover:underline cursor-pointer">Mark all read</button>
+              <button (click)="markAllNotificationsRead()" class="text-[10px] font-semibold text-primary-700 hover:underline cursor-pointer">Mark all read</button>
             </div>
             
             <div class="max-h-64 overflow-y-auto">
@@ -333,7 +333,7 @@
                 <div *ngFor="let line of selectedAccount360.lines" class="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                   <div>
                     <div class="flex items-center gap-2 mb-1">
-                      <p class="text-base font-bold text-slate-800 font-mono">{{ line.msisdn }}</p>
+                      <p class="text-base font-bold text-slate-800 font-mono">{{ line.msisdn | phoneNumber }}</p>
                       <span [class]="getStatusBadgeClasses(line.status)">{{ getStatusLabel(line.status) }}</span>
                     </div>
                     <p class="text-xs text-slate-500 font-light mt-0.5">ICCID: {{ line.iccid }} | Type: <strong class="font-semibold text-slate-700">{{ line.serviceType || 'VoiceData' }}</strong></p>
@@ -598,7 +598,7 @@
       <div *ngIf="activeTab() === 'wizard'" [@fadeInUp] class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 max-w-3xl mx-auto flex flex-col gap-6">
         <div>
           <h3 class="text-base font-bold text-slate-800">Plan Change Provisioning Wizard</h3>
-          <p class="text-xs text-slate-400 font-light mt-0.5">SIM Line: +1-{{ selectedWizardLine?.msisdn }}</p>
+          <p class="text-xs text-slate-400 font-light mt-0.5">SIM Line: {{ selectedWizardLine?.msisdn | phoneNumber }}</p>
         </div>
 
         <!-- Wizard Step Indicators & Progress Bar -->
@@ -632,7 +632,7 @@
               </div>
               <div>
                 <span class="text-slate-400 uppercase">Primary MSISDN:</span>
-                <p class="font-semibold text-slate-800 mt-1 font-mono">+1-{{ selectedWizardLine?.msisdn }}</p>
+                <p class="font-semibold text-slate-800 mt-1 font-mono">{{ selectedWizardLine?.msisdn | phoneNumber }}</p>
               </div>
               <div>
                 <span class="text-slate-400 uppercase">Current Subscribed Plan:</span>
@@ -705,7 +705,7 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-400">Target Line:</span>
-                <span class="font-semibold text-slate-800 font-mono">+1-{{ selectedWizardLine?.msisdn }}</span>
+                <span class="font-semibold text-slate-800 font-mono">{{ selectedWizardLine?.msisdn | phoneNumber }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-400">New Upgraded Plan:</span>
@@ -1250,7 +1250,7 @@
     </button>
 
     <h3 class="text-lg font-bold text-slate-800 tracking-tight">Replace SIM Chip</h3>
-    <p class="text-xs text-slate-500 mt-1 mb-5">Assign a new ICCID hardware chip to MSISDN <strong class="font-bold text-slate-700">+1-{{ selectedLineForReplace?.msisdn }}</strong>.</p>
+    <p class="text-xs text-slate-500 mt-1 mb-5">Assign a new ICCID hardware chip to MSISDN <strong class="font-bold text-slate-700">{{ selectedLineForReplace?.msisdn | phoneNumber }}</strong>.</p>
 
     <div class="flex flex-col gap-4">
       <div>
@@ -1280,7 +1280,7 @@
     </button>
 
     <h3 class="text-lg font-bold text-slate-800 tracking-tight">Update Service Type</h3>
-    <p class="text-xs text-slate-500 mt-1 mb-5">SIM Line <strong class="font-bold text-slate-700">#{{ selectedLineForServiceType?.lineId }}</strong> (+1-{{ selectedLineForServiceType?.msisdn }})</p>
+    <p class="text-xs text-slate-500 mt-1 mb-5">SIM Line <strong class="font-bold text-slate-700">#{{ selectedLineForServiceType?.lineId }}</strong> ({{ selectedLineForServiceType?.msisdn | phoneNumber }})</p>
 
     <div class="flex flex-col gap-4">
       <div>
@@ -1308,7 +1308,7 @@
     <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
       <div>
         <h2 class="text-base font-bold text-slate-800">Assign Plan</h2>
-        <p class="text-xs text-slate-400 font-light mt-0.5">Line #{{ provisionLine?.lineId }} — MSISDN: {{ provisionLine?.msisdn }}</p>
+        <p class="text-xs text-slate-400 font-light mt-0.5">Line #{{ provisionLine?.lineId }} — MSISDN: {{ provisionLine?.msisdn | phoneNumber }}</p>
       </div>
       <button (click)="closePlanProvision()" class="text-slate-400 hover:text-slate-700 cursor-pointer">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>

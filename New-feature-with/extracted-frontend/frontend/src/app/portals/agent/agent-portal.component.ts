@@ -15,11 +15,12 @@ import { fadeInUp, staggerFadeIn, shake, scaleIn, slideHorizontal } from '../../
 import { MyAccountModalComponent } from '../../shared/my-account-modal/my-account-modal.component';
 import { PaginatePipe } from '../../shared/pagination/paginate.pipe';
 import { PaginatorComponent } from '../../shared/pagination/paginator.component';
+import { PhoneNumberPipe } from '../../shared/phone-number.pipe';
 
 @Component({
   selector: 'app-agent-portal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, MyAccountModalComponent, PaginatePipe, PaginatorComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, MyAccountModalComponent, PaginatePipe, PhoneNumberPipe, PaginatorComponent],
   templateUrl: './agent-portal.component.html',
   styleUrls: ['./agent-portal.component.css'],
   animations: [fadeInUp, staggerFadeIn, shake, scaleIn, slideHorizontal]
@@ -216,6 +217,10 @@ export class AgentPortalComponent implements OnInit {
     if (this.isNotificationOpen()) {
       this.notificationService.refreshNotifications();
     }
+  }
+
+  markAllNotificationsRead(): void {
+    this.notificationService.markAllAsRead().subscribe(() => this.iamService.recordAudit('MARK_ALL_NOTIFICATIONS_READ', 'NOTIFICATION'));
   }
 
   logout(): void {
@@ -694,7 +699,8 @@ export class AgentPortalComponent implements OnInit {
   // Masking helper
   maskMsisdn(msisdn: string): string {
     if (!msisdn) return '';
-    return msisdn.substring(0, 2) + 'XXXXXX' + msisdn.substring(msisdn.length - 2);
+    const digits = msisdn.replace(/^\+?\d{1,3}[-\s]?/, '').replace(/\D/g, '') || msisdn;
+    return digits.substring(0, 2) + 'XXXXXX' + digits.substring(digits.length - 2);
   }
 
   // ==========================================
@@ -775,7 +781,7 @@ export class AgentPortalComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.isSubmittingFault = false;
-        this.iamService.recordAudit('FAULT_TICKET_RAISED', 'AGENT');
+        this.iamService.recordAudit('FAULT_TICKET_RAISED', 'FAULT');
         this.toastService.success('Fault ticket raised and routed to Network Ops (NOC).');
         this.faultForm.reset({ faultType: 'NoCoverage', priority: 'Medium', accountId: '', lineId: '', description: '' });
       },
@@ -986,7 +992,7 @@ export class AgentPortalComponent implements OnInit {
     // createSubscription persists addOnId directly, so no follow-up call is needed.
     this.planService.createSubscription({ lineId, planId, addOnId, activationDate, expiryDate, renewalType: 'AutoRenew', status: 'A' }).subscribe({
       next: () => {
-        this.iamService.recordAudit('PLAN_PROVISIONED', 'AGENT');
+        this.iamService.recordAudit('PLAN_PROVISIONED', 'PLAN');
         this.pushNotification(this.selectedAccount360?.subscriberId ?? this.selectedAccount360?.subscriber?.userId, `Your plan "${this.provisionSelectedPlan.name}"${addOnId ? ' with an add-on' : ''} is now active.`, 'PLAN');
         this.toastService.success(`Plan "${this.provisionSelectedPlan.name}" provisioned successfully!`);
         if (accountId) this.autoCreateInvoice(accountId, planPrice, addOnPrice, activationDate, expiryDate);

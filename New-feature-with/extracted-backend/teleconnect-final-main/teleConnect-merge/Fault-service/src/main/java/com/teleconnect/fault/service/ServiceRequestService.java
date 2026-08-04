@@ -191,7 +191,7 @@ public class ServiceRequestService {
             // iii. Subscriber-service: POST /teleConnect/api/subscribers/{accountId}/simLines
             String simUrl = "http://localhost:9090/teleConnect/api/subscribers/" + accountId + "/simLines";
             String timestamp = String.valueOf(System.currentTimeMillis());
-            String msisdn = "+9198" + String.format("%04d", accountId) + timestamp.substring(Math.max(0, timestamp.length() - 4));
+            String msisdn = "98" + String.format("%04d", accountId) + timestamp.substring(Math.max(0, timestamp.length() - 4));
             String iccid = "8991000" + String.format("%04d", accountId) + timestamp.substring(Math.max(0, timestamp.length() - 5));
 
             Map<String, Object> simReq = new HashMap<>();
