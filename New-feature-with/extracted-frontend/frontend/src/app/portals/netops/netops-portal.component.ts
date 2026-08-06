@@ -44,7 +44,9 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
 
   // Fault Tickets Kanban Board
   allTickets: any[] = [];
-  kanbanColumns = ['Open', 'InProgress', 'Resolved', 'Closed', 'Escalated'];
+  // Closed column removed from the NOC board — closed tickets drop off the board
+  // (they remain in the DB and still show in SLA Monitor, subscriber view, analytics, etc.)
+  kanbanColumns = ['Open', 'InProgress', 'Resolved', 'Escalated'];
 
   // SLA trackers
   slaCompliancePct = 95.8;
@@ -276,7 +278,9 @@ export class NetopsPortalComponent implements OnInit, OnDestroy {
   // Kanban Operations
   // ==========================================
   getTicketsInColumn(col: string): any[] {
-    let list = this.allTickets.filter(t => t.status === col);
+    // Board excludes Closed tickets entirely — a Closed ticket leaves the board
+    // (still persisted and visible in SLA Monitor / subscriber / analytics).
+    let list = this.allTickets.filter(t => t.status !== 'Closed' && t.status === col);
     if (this.selectedRegionFilter) {
       list = list.filter(t => t.faultType === this.selectedRegionFilter);
     }
