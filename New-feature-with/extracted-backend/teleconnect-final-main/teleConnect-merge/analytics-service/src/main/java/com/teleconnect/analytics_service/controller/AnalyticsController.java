@@ -42,10 +42,7 @@ public class AnalyticsController {
         log.info("Initialized AnalyticsController");
     }
 
-    /**
-     * GET /api/reports/arpu?cycleId=&scope=&scopeValue=
-     * Roles: Admin, Billing
-     */
+    
     @GetMapping("/arpu")
     public ResponseEntity<ApiResponse<ARPUReportResponse>> getARPU(
             @RequestParam Long cycleId,
@@ -57,10 +54,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    /**
-     * GET /api/reports/churn?periodStart=&periodEnd=&region=
-     * Roles: Admin, Compliance
-     */
+   
     @GetMapping("/churn")
     public ResponseEntity<ApiResponse<ChurnReportResponse>> getChurn(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodStart,
@@ -72,10 +66,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    /**
-     * GET /api/reports/network-utilisation?cycleId=&region=
-     * Roles: Admin, NetworkOps
-     */
+   
     @GetMapping("/network-utilisation")
     public ResponseEntity<ApiResponse<NetworkUtilisationResponse>> getNetworkUtilisation(
             @RequestParam Long cycleId,
@@ -86,10 +77,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    /**
-     * GET /api/reports/sla-compliance?periodStart=&periodEnd=
-     * Roles: Admin, NetworkOps, Compliance
-     */
+    
     @GetMapping("/sla-compliance")
     public ResponseEntity<ApiResponse<SLAComplianceResponse>> getSLACompliance(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodStart,
@@ -100,10 +88,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    /**
-     * GET /api/reports/collection-efficiency?cycleId=
-     * Roles: Admin, Billing
-     */
+    
     @GetMapping("/collection-efficiency")
     public ResponseEntity<ApiResponse<CollectionEfficiencyResponse>> getCollectionEfficiency(
             @RequestParam Long cycleId) {
@@ -113,10 +98,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    /**
-     * GET /api/reports/subscriber-growth?periodStart=&periodEnd=
-     * Roles: Admin, Compliance
-     */
+    
     @GetMapping("/subscriber-growth")
     public ResponseEntity<ApiResponse<SubscriberGrowthResponse>> getSubscriberGrowth(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodStart,

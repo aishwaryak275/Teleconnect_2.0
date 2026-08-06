@@ -17,7 +17,6 @@ public class SchedulingConfig {
         this.slaComplianceService = slaComplianceService;
     }
 
-    /** Run every hour to check and escalate tickets breaching SLA targets. */
     @Scheduled(fixedRateString = "PT1H")
     public void scheduledSLAEscalation() {
         log.info("Running scheduled SLA breach escalation check");

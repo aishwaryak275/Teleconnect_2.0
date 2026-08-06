@@ -71,12 +71,12 @@ export interface CollectionEfficiencyReport {
   totalInvoiced: number;
   totalCollected: number;
   collectionEfficiencyPct: number;
-  overdueCount0To30: number;
-  overdueAmount0To30: number;
-  overdueCount31To60: number;
-  overdueAmount31To60: number;
-  overdueCount60Plus: number;
-  overdueAmount60Plus: number;
+  overdueCount0to30: number;
+  overdueAmount0to30: number;
+  overdueCount31to60: number;
+  overdueAmount31to60: number;
+  overdueCount60plus: number;
+  overdueAmount60plus: number;
 }
 
 export interface SubscriberGrowthReport {
