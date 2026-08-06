@@ -277,7 +277,7 @@
       <section *ngIf="section() === 'payments'" @fadeInUp>
         <div class="flex items-start justify-between mb-6">
           <div>
-            <h2 class="text-2xl font-bold text-slate-900">Payment Ledger</h2>
+            <h2 class="text-2xl font-bold text-slate-900">Payment Ler</h2>
             <p class="text-sm text-slate-400 mt-1">Confirmed and cleared payment transactions</p>
           </div>
           <button (click)="openRecordPayment()" class="text-sm font-medium text-white bg-primary-700 hover:bg-primary-800 rounded-lg px-4 py-2.5 flex items-center gap-1.5">
@@ -338,7 +338,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let p of (filteredPayments | paginate: paymentsPage : pageSize)" class="border-b border-slate-50 hover:bg-slate-50/60">
+                <tr *ngFor="let p of (filteredPayments | paginate: paymentsPage : paymentsPageSize)" class="border-b border-slate-50 hover:bg-slate-50/60">
                   <td class="px-4 py-3 font-medium text-primary-700">{{ p.paymentId }}</td>
                   <td class="px-4 py-3 text-slate-600">{{ p.invoiceRef }}</td>
                   <td class="px-4 py-3">
@@ -370,7 +370,7 @@
             <p class="text-xs text-slate-400">Showing {{ filteredPayments.length }} of {{ payments.length }} payments</p>
             <p class="text-xs text-slate-500">Total: <span class="font-bold text-emerald-600">{{ inr(paymentKpis.total) }}</span></p>
           </div>
-          <app-paginator [total]="filteredPayments.length" [page]="paymentsPage" [size]="pageSize" (pageChange)="paymentsPage = $event" class="block px-4 border-t border-slate-100"></app-paginator>
+          <app-paginator [total]="filteredPayments.length" [page]="paymentsPage" [size]="paymentsPageSize" (pageChange)="paymentsPage = $event" class="block px-4 border-t border-slate-100"></app-paginator>
         </div>
       </section>
 
@@ -548,47 +548,6 @@
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-          <div class="flex items-center justify-between mb-4">
-            <p class="text-sm font-bold text-slate-900">Top Overdue Accounts</p>
-            <button (click)="setSection('invoices')" class="text-xs text-primary-600 hover:underline">View All →</button>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-left text-[11px] font-semibold tracking-wider text-slate-400 uppercase border-b border-slate-100">
-                  <th class="px-4 py-3">Account</th>
-                  <th class="px-4 py-3">Customer</th>
-                  <th class="px-4 py-3">Invoice</th>
-                  <th class="px-4 py-3 text-right">Amount</th>
-                  <th class="px-4 py-3">Days Overdue</th>
-                  <th class="px-4 py-3">Plan</th>
-                  <th class="px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let r of topOverdue" class="border-b border-slate-50 hover:bg-slate-50/60">
-                  <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ r.accountId }}</td>
-                  <td class="px-4 py-3 font-medium text-slate-800">{{ r.customer }}</td>
-                  <td class="px-4 py-3 text-slate-600">{{ r.invoice }}</td>
-                  <td class="px-4 py-3 text-right font-semibold text-rose-600">{{ inr(r.amount) }}</td>
-                  <td class="px-4 py-3 text-rose-600 font-medium">{{ r.daysOverdue }}d</td>
-                  <td class="px-4 py-3 text-slate-600">{{ r.plan }}</td>
-                  <td class="px-4 py-3 relative">
-                    <button (click)="toggleReportKebab(r.invoice)" class="p-1.5 rounded-lg hover:bg-slate-100">
-                      <svg class="w-4 h-4 text-slate-500" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-                    </button>
-                    <div *ngIf="openReportKebabId === r.invoice" @scaleIn class="absolute right-4 top-10 w-40 bg-white rounded-lg shadow-xl border border-slate-200 z-30 py-1">
-                      <button (click)="viewOverdue(r)" class="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">View Details</button>
-                      <button (click)="sendReminder(r)" class="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Send Reminder</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
 

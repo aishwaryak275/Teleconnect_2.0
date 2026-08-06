@@ -53,10 +53,7 @@ public class ExportController {
         log.info("Initialized ExportController");
     }
 
-    /**
-     * Export a complete executive dashboard as PDF.
-     * GET /api/reports/dashboard/export?cycleId=1&startDate=2024-06-01&endDate=2024-06-30
-     */
+    
     @GetMapping("/dashboard/export")
     public ResponseEntity<byte[]> exportDashboard(
             @RequestParam(required = false, defaultValue = "1") Long cycleId,
@@ -76,10 +73,7 @@ public class ExportController {
         }
     }
 
-    /**
-     * Export a saved TelecomReport snapshot by ID.
-     * GET /api/reports/{reportId}/export?format=pdf|csv
-     */
+   
     @GetMapping("/{reportId}/export")
     public ResponseEntity<byte[]> exportSavedReport(
             @PathVariable Long reportId,
@@ -100,10 +94,7 @@ public class ExportController {
         }
     }
 
-    /**
-     * Export ARPU report.
-     * GET /api/reports/arpu/export?cycleId=1&scope=PERIOD&scopeValue=ALL&format=pdf|csv
-     */
+   
     @GetMapping("/arpu/export")
     public ResponseEntity<byte[]> exportArpu(
             @RequestParam Long cycleId,
@@ -121,10 +112,7 @@ public class ExportController {
         }
     }
 
-    /**
-     * Export Churn report.
-     * GET /api/reports/churn/export?periodStart=&periodEnd=&region=&format=pdf|csv
-     */
+   
     @GetMapping("/churn/export")
     public ResponseEntity<byte[]> exportChurn(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodStart,
@@ -142,10 +130,7 @@ public class ExportController {
         }
     }
 
-    /**
-     * Export Network Utilisation report.
-     * GET /api/reports/network-utilisation/export?cycleId=&region=&format=pdf|csv
-     */
+    
     @GetMapping("/network-utilisation/export")
     public ResponseEntity<byte[]> exportNetworkUtilisation(
             @RequestParam Long cycleId,
@@ -162,10 +147,7 @@ public class ExportController {
         }
     }
 
-    /**
-     * Export SLA Compliance report.
-     * GET /api/reports/sla-compliance/export?periodStart=&periodEnd=&format=pdf|csv
-     */
+    
     @GetMapping("/sla-compliance/export")
     public ResponseEntity<byte[]> exportSLACompliance(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodStart,
@@ -182,10 +164,7 @@ public class ExportController {
         }
     }
 
-    /**
-     * Export Collection Efficiency report.
-     * GET /api/reports/collection-efficiency/export?cycleId=&format=pdf|csv
-     */
+    
     @GetMapping("/collection-efficiency/export")
     public ResponseEntity<byte[]> exportCollectionEfficiency(
             @RequestParam Long cycleId,
@@ -201,10 +180,7 @@ public class ExportController {
         }
     }
 
-    /**
-     * Export Subscriber Growth report.
-     * GET /api/reports/subscriber-growth/export?periodStart=&periodEnd=&format=pdf|csv
-     */
+    
     @GetMapping("/subscriber-growth/export")
     public ResponseEntity<byte[]> exportSubscriberGrowth(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodStart,
@@ -221,7 +197,6 @@ public class ExportController {
         }
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private ResponseEntity<byte[]> pdfResponse(byte[] data, String filename) {
         HttpHeaders headers = new HttpHeaders();

@@ -42,12 +42,6 @@ public class BillingCycleController {
         log.info("Initialized BillingCycleController");
     }
 
-    /**
-     * POST /teleConnect/billing/cycles
-     * Creates a new billing cycle for an account.
-     */
-    // PAY_BILL is allowed so a subscriber purchasing a plan can open the billing
-    // cycle for their own account (self-service checkout); billing staff use BILLING_CYCLE.
     @PostMapping
     @PreAuthorize("hasAnyAuthority('BILLING_CYCLE','PAY_BILL')")
     public ResponseEntity<BillingCycleResponse> createBillingCycle(
@@ -58,11 +52,7 @@ public class BillingCycleController {
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
-    /**
-     * POST /teleConnect/billing/cycles/generate
-     * Triggers batch invoice generation for all eligible open cycles.
-     * NOTE: Must be declared before /{cycleId} to avoid path conflict.
-     */
+  
     @PostMapping("/generate")
     @PreAuthorize("hasAuthority('BILLING_CYCLE')")
     public ResponseEntity<MessageResponse> generateInvoices(
@@ -73,11 +63,6 @@ public class BillingCycleController {
         return ResponseEntity.ok(new MessageResponse("Invoice generation completed successfully"));
     }
 
-    /**
-     * GET /teleConnect/billing/cycles/account/{accountId}
-     * Returns a paginated list of billing cycles for a subscriber account.
-     * NOTE: Must be declared before /{cycleId} to avoid "account" being parsed as Long.
-     */
     @GetMapping("/account/{accountId}")
     @PreAuthorize("hasAnyAuthority('BILLING_CYCLE','VIEW_INVOICE')")
     public ResponseEntity<List<BillingCycleResponse>> getCyclesByAccount(
@@ -90,11 +75,7 @@ public class BillingCycleController {
         return ResponseEntity.ok(data.getContent());
     }
 
-    /**
-     * PUT /teleConnect/billing/cycles/{cycleId}/close
-     * Manually closes a billing cycle. Irreversible.
-     * NOTE: Must be declared before /{cycleId} GET to avoid conflict.
-     */
+ 
     @PutMapping("/{cycleId}/close")
     @PreAuthorize("hasAuthority('BILLING_CYCLE')")
     public ResponseEntity<MessageResponse> closeCycle(@PathVariable Long cycleId,
@@ -104,10 +85,7 @@ public class BillingCycleController {
         return ResponseEntity.ok(new MessageResponse("Billing cycle closed successfully"));
     }
 
-    /**
-     * PUT /teleConnect/billing/cycles/{cycleId}/status
-     * Updates the status of a billing cycle.
-     */
+   
     @PutMapping("/{cycleId}/status")
     @PreAuthorize("hasAuthority('BILLING_CYCLE')")
     public ResponseEntity<BillingCycleResponse> updateStatus(
@@ -119,11 +97,7 @@ public class BillingCycleController {
         return ResponseEntity.ok(result);
     }
 
-    /**
-     * GET /teleConnect/billing/cycles/{cycleId}
-     * Returns full details of one billing cycle by its ID.
-     * NOTE: Declared last — only matches numeric IDs.
-     */
+   
     @GetMapping("/{cycleId}")
     @PreAuthorize("hasAuthority('BILLING_CYCLE')")
     public ResponseEntity<BillingCycleResponse> getBillingCycle(@PathVariable Long cycleId) {

@@ -94,11 +94,12 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   invoiceSearch = '';
   invoiceStatusFilter = 'All Statuses';
   invoicePage = 1;
-  readonly invoicePageSize = 10;
+  readonly invoicePageSize = 8;
   lastSync = '14:32 UTC';
 
   // Shared page size for the paginated tables (keeps content on one screen).
   readonly pageSize = 8;
+  readonly paymentsPageSize = 6;
   paymentsPage = 1;
   disputesPage = 1;
 
@@ -119,21 +120,16 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   logDisputeForm!: FormGroup;
 
   // ── Reports ───────────────────────────────────────────────────────────────
-  topOverdue = [
-    { accountId: 'ACC-10087', customer: 'Tata Consultancy Services', invoice: 'INV-2024-08842', amount: 31498, daysOverdue: 7, plan: 'Jio Enterprise Unlimited' },
-    { accountId: 'ACC-10309', customer: 'HDFC Bank Ltd', invoice: 'INV-2024-08846', amount: 42998, daysOverdue: 7, plan: 'JioFiber Enterprise 1 Gbps' }
-  ];
+  // TODO: wire to a real backend endpoint (e.g. reportService.getTopOverdue()).
+  topOverdue: { accountId: string; customer: string; invoice: string; amount: number; daysOverdue: number; plan: string }[] = [];
   openReportKebabId: string | null = null;
   private billingChart: Chart | null = null;
   private disputeTrendChart: Chart | null = null;
 
   // ── Settings ────────────────────────────────────────────────────────────────
   settingsForm!: FormGroup;
-  teamMembers = [
-    { initials: 'SK', name: 'Sanya K.', email: 'sanya.k@jio.com', role: 'Billing Executive', access: 'Admin' },
-    { initials: 'RM', name: 'Rahul M.', email: 'rahul.m@jio.com', role: 'Billing Executive', access: 'Editor' },
-    { initials: 'VT', name: 'Vikram T.', email: 'vikram.t@jio.com', role: 'Collections Analyst', access: 'Viewer' }
-  ];
+  // TODO: wire to a real backend endpoint (e.g. iamService.getTeamMembers()).
+  teamMembers: { initials: string; name: string; email: string; role: string; access: string }[] = [];
 
   constructor(
     public authService: AuthService,
@@ -155,48 +151,8 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.user = this.authService.currentUser()!;
-    this.seedData();
     this.initForms();
     this.loadFromBackend();
-  }
-
-  // ============================================================================
-  // Seed data — mirrors the reference design; used standalone and as a
-  // graceful fallback if the billing microservice is unavailable.
-  // ============================================================================
-  private seedData(): void {
-    this.invoices = [
-      { invoiceId: 'INV-2024-08841', accountId: 'ACC-10042', customer: 'Reliance Industries Ltd',  cycle: 'Jul 2024', amount: 16999, dueDate: '2024-08-15', status: 'Paid' },
-      { invoiceId: 'INV-2024-08842', accountId: 'ACC-10087', customer: 'Tata Consultancy Services', cycle: 'Jul 2024', amount: 31498, dueDate: '2024-08-15', status: 'Overdue' },
-      { invoiceId: 'INV-2024-08843', accountId: 'ACC-10114', customer: 'Ananya Krishnamurthy',      cycle: 'Jul 2024', amount: 839,   dueDate: '2024-08-20', status: 'Paid' },
-      { invoiceId: 'INV-2024-08844', accountId: 'ACC-10203', customer: 'Infosys BPM Solutions',     cycle: 'Jul 2024', amount: 54999, dueDate: '2024-08-15', status: 'Disputed' },
-      { invoiceId: 'INV-2024-08845', accountId: 'ACC-10271', customer: 'Rajesh Venkataraman',       cycle: 'Jul 2024', amount: 9999,  dueDate: '2024-08-22', status: 'Open' },
-      { invoiceId: 'INV-2024-08846', accountId: 'ACC-10309', customer: 'HDFC Bank Ltd',             cycle: 'Jul 2024', amount: 42998, dueDate: '2024-08-15', status: 'Overdue' },
-      { invoiceId: 'INV-2024-08847', accountId: 'ACC-10348', customer: 'Priya Nambiar',             cycle: 'Jul 2024', amount: 2999,  dueDate: '2024-08-20', status: 'Paid' },
-      { invoiceId: 'INV-2024-08848', accountId: 'ACC-10391', customer: 'Wipro Digital Ltd',         cycle: 'Jul 2024', amount: 19998, dueDate: '2024-08-18', status: 'Open' },
-      { invoiceId: 'INV-2024-08849', accountId: 'ACC-10422', customer: 'Suresh Iyer',               cycle: 'Jul 2024', amount: 299,   dueDate: '2024-08-25', status: 'Paid' },
-      { invoiceId: 'INV-2024-08850', accountId: 'ACC-10467', customer: 'Mahindra & Mahindra Ltd',   cycle: 'Jul 2024', amount: 89999, dueDate: '2024-08-15', status: 'Disputed' }
-    ];
-
-    this.payments = [
-      { paymentId: 'PAY-77341', invoiceRef: 'INV-2024-08841', accountId: 'ACC-10042', customer: 'Reliance Industries Ltd', amount: 16999, method: 'Bank Transfer', date: '2024-08-10', reference: 'NEFT-9284710',   status: 'Confirmed' },
-      { paymentId: 'PAY-77338', invoiceRef: 'INV-2024-08843', accountId: 'ACC-10114', customer: 'Ananya Krishnamurthy',     amount: 839,   method: 'UPI',           date: '2024-08-12', reference: 'UPI-4412893100', status: 'Confirmed' },
-      { paymentId: 'PAY-77330', invoiceRef: 'INV-2024-08847', accountId: 'ACC-10348', customer: 'Priya Nambiar',            amount: 2999,  method: 'Direct Debit',  date: '2024-08-09', reference: 'DD-20240809',    status: 'Confirmed' },
-      { paymentId: 'PAY-77319', invoiceRef: 'INV-2024-08849', accountId: 'ACC-10422', customer: 'Suresh Iyer',              amount: 299,   method: 'UPI',           date: '2024-08-08', reference: 'UPI-3300448812', status: 'Confirmed' },
-      { paymentId: 'PAY-77302', invoiceRef: 'INV-2024-08830', accountId: 'ACC-10042', customer: 'Reliance Industries Ltd', amount: 16999, method: 'Bank Transfer', date: '2024-07-14', reference: 'NEFT-9261448',   status: 'Confirmed' },
-      { paymentId: 'PAY-77291', invoiceRef: 'INV-2024-08828', accountId: 'ACC-10309', customer: 'HDFC Bank Ltd',           amount: 42998, method: 'Cheque',        date: '2024-07-11', reference: 'CHQ-00481',      status: 'Cleared' },
-      { paymentId: 'PAY-77285', invoiceRef: 'INV-2024-08826', accountId: 'ACC-10391', customer: 'Wipro Digital Ltd',       amount: 19998, method: 'Bank Transfer', date: '2024-07-09', reference: 'RTGS-9258812',   status: 'Confirmed' },
-      { paymentId: 'PAY-77271', invoiceRef: 'INV-2024-08820', accountId: 'ACC-10467', customer: 'Mahindra & Mahindra Ltd', amount: 89999, method: 'Bank Transfer', date: '2024-07-05', reference: 'RTGS-9252001',   status: 'Confirmed' }
-    ];
-
-    this.disputes = [
-      { disputeId: 'DSP-4471', accountId: 'ACC-10203', customer: 'Infosys BPM Solutions',     invoice: 'INV-2024-08844', category: 'Data Billing',     reason: 'Excess data charges not matching usage report',       amount: 54999, priority: 'High',     status: 'Under Review', assignee: 'Sanya K.',  daysOpen: 5 },
-      { disputeId: 'DSP-4468', accountId: 'ACC-10467', customer: 'Mahindra & Mahindra Ltd',   invoice: 'INV-2024-08850', category: 'Duplicate Charge', reason: 'Double billing — duplicate invoice detected in system', amount: 89999, priority: 'Critical', status: 'Escalated',    assignee: 'Rahul M.',  daysOpen: 12 },
-      { disputeId: 'DSP-4459', accountId: 'ACC-10087', customer: 'Tata Consultancy Services', invoice: 'INV-2024-08842', category: 'Add-On Error',     reason: 'Add-on charge applied after plan cancellation date',   amount: 31498, priority: 'Medium',   status: 'Pending Info', assignee: 'Sanya K.',  daysOpen: 18 },
-      { disputeId: 'DSP-4451', accountId: 'ACC-10309', customer: 'HDFC Bank Ltd',             invoice: 'INV-2024-08846', category: 'Roaming',         reason: 'Incorrect ISD roaming rate applied on postpaid plan',  amount: 42998, priority: 'High',     status: 'Under Review', assignee: 'Vikram T.', daysOpen: 9 },
-      { disputeId: 'DSP-4439', accountId: 'ACC-10114', customer: 'Ananya Krishnamurthy',      invoice: 'INV-2024-08843', category: 'System Error',    reason: 'Payment posted via UPI but invoice still marked open', amount: 839,   priority: 'Low',      status: 'Resolved',     assignee: 'Vikram T.', daysOpen: 21 },
-      { disputeId: 'DSP-4428', accountId: 'ACC-10042', customer: 'Reliance Industries Ltd',   invoice: 'INV-2024-08833', category: 'Usage Dispute',   reason: 'JioSMS bundle usage discrepancy on billing cycle',     amount: 1499,  priority: 'Low',      status: 'Resolved',     assignee: 'Rahul M.',  daysOpen: 30 }
-    ];
   }
 
   private initForms(): void {
@@ -233,7 +189,7 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Best-effort refresh from the backend; keeps seed data on any failure. */
+  /** Loads invoices, payments, and disputes from the backend. */
   private loadFromBackend(): void {
     let pendingPayments: any[] | null = null;
     let pendingDisputes: any[] | null = null;
@@ -245,7 +201,7 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
         if (pendingPayments) this.payments = this.mapPayments(pendingPayments);
         if (pendingDisputes) this.disputes = this.mapDisputes(pendingDisputes);
       },
-      error: () => { /* keep seed data — backend optional */ }
+      error: () => { /* invoices unavailable */ }
     });
     this.billingService.getPayments().subscribe({
       next: (data) => {
@@ -253,7 +209,7 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
         pendingPayments = data;
         this.payments = this.mapPayments(data);
       },
-      error: () => { /* keep seed data */ }
+      error: () => { /* payments unavailable */ }
     });
     this.billingService.getDisputes().subscribe({
       next: (data) => {
@@ -261,11 +217,11 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
         pendingDisputes = data;
         this.disputes = this.mapDisputes(data);
       },
-      error: () => { /* keep seed data */ }
+      error: () => { /* disputes unavailable */ }
     });
   }
 
-  // Backend → view-model mappers (defensive: fall through to seed shape).
+  // Backend → view-model mappers (defensive: fall through to a safe display shape).
   private mapInvoices(data: any[]): Invoice[] {
     return data.map(d => ({
       invoiceId: d.invoiceId != null ? `INV-${d.invoiceId}` : (d.invoiceCode ?? '—'),
@@ -838,17 +794,19 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   // ============================================================================
   // REPORTS
   // ============================================================================
-  // Stable objects — NOT getters — so change detection doesn't allocate a new array/object
-  // every cycle next to the responsive Reports charts (that caused a resize→CD→reflow freeze).
+  // TODO: wire to a real backend endpoint (e.g. reportService.getBillingKpis()).
+  // Kept as a stable object (not a getter) so change detection doesn't allocate
+  // a new object every cycle next to the responsive Reports charts (that
+  // previously caused a resize→CD→reflow freeze).
   readonly reportKpis = {
-    totalBilled: 289000,
-    collected: 256000,
-    collectionRate: 88.6,
-    outstanding: 33000,
-    pendingPct: 11.4,
-    disputeRate: 6.0,
-    disputeRateDelta: 1.2,
-    avgInvoice: 28900
+    totalBilled: 0,
+    collected: 0,
+    collectionRate: 0,
+    outstanding: 0,
+    pendingPct: 0,
+    disputeRate: 0,
+    disputeRateDelta: 0,
+    avgInvoice: 0
   };
 
   invoiceStatusBreakdown: any[] = [];
@@ -893,6 +851,9 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
     });
   }
 
+  // TODO: wire chart datasets to a real backend endpoint
+  // (e.g. reportService.getBillingTrend() / getDisputeTrend()) instead of
+  // rendering empty charts.
   private renderCharts(): void {
     const billingCtx = document.getElementById('billingChart') as HTMLCanvasElement | null;
     if (billingCtx) {
@@ -900,17 +861,20 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
       this.billingChart = new Chart(billingCtx, {
         type: 'bar',
         data: {
-          labels: ['Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+          labels: [],
           datasets: [
-            { label: 'Billed',    data: [240000, 258000, 250000, 268000, 278000, 289000], backgroundColor: '#bfdbfe', borderRadius: 6, borderWidth: 0 },
-            { label: 'Collected', data: [225000, 238000, 236000, 250000, 262000, 256000], backgroundColor: '#bbf7d0', borderRadius: 6, borderWidth: 0 }
+            { label: 'Billed',    data: [], backgroundColor: '#bfdbfe', borderRadius: 6, borderWidth: 0 },
+            { label: 'Collected', data: [], backgroundColor: '#bbf7d0', borderRadius: 6, borderWidth: 0 }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, pointStyle: 'rectRounded' } } },
-          scales: { x: { grid: { display: false } }, y: { display: false, beginAtZero: true } }
+          scales: {
+            x: { grid: { display: false }, title: { display: true, text: 'Month' } },
+            y: { display: true, beginAtZero: true, title: { display: true, text: 'Amount (₹)' } }
+          }
         }
       });
     }
@@ -921,14 +885,17 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
       this.disputeTrendChart = new Chart(trendCtx, {
         type: 'bar',
         data: {
-          labels: ['Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
-          datasets: [{ label: 'Disputes opened', data: [3, 4, 2, 6, 5, 6], backgroundColor: '#fed7aa', borderRadius: 6, borderWidth: 0 }]
+          labels: [],
+          datasets: [{ label: 'Disputes opened', data: [], backgroundColor: '#fed7aa', borderRadius: 6, borderWidth: 0 }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: { x: { grid: { display: false } }, y: { display: false, beginAtZero: true } }
+          scales: {
+            x: { grid: { display: false }, title: { display: true, text: 'Month' } },
+            y: { display: true, beginAtZero: true, title: { display: true, text: 'Disputes Opened' } }
+          }
         }
       });
     }

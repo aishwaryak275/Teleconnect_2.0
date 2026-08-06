@@ -173,19 +173,24 @@ export class AnalyticsPanelComponent implements OnInit, OnDestroy {
     if (!d) return;
 
     const palette = ['#0ea5e9', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+    const barStyle = { borderRadius: 18, borderSkipped: false, maxBarThickness: 42, barPercentage: 0.72, categoryPercentage: 0.72 };
+    const suggestedMax = (values: number[]): number | undefined => {
+      const max = Math.max(...values);
+      if (!isFinite(max) || max <= 0) return undefined;
+      return Math.ceil(max * 1.15);
+    };
 
     switch (key) {
       case 'arpu': {
-        const hideEnterprise = this.role === 'Billing';
-        const arpuLabels = hideEnterprise ? ['Prepaid', 'Postpaid'] : ['Prepaid', 'Postpaid', 'Enterprise'];
-        const arpuData = hideEnterprise ? [d.arpuPrepaid, d.arpuPostpaid] : [d.arpuPrepaid, d.arpuPostpaid, d.arpuEnterprise];
+        const arpuLabels = ['Prepaid', 'Postpaid'];
+        const arpuData = [d.arpuPrepaid, d.arpuPostpaid];
         this.charts[key] = new Chart(canvas, {
           type: 'bar',
           data: {
             labels: arpuLabels,
-            datasets: [{ label: 'ARPU (₹)', data: arpuData, backgroundColor: palette.slice(0, arpuLabels.length) }]
+            datasets: [{ label: 'ARPU (₹)', data: arpuData, backgroundColor: palette.slice(0, arpuLabels.length), ...barStyle }]
           },
-          options: this.baseOpts()
+          options: this.baseOpts(suggestedMax(arpuData), 'Plan Segment', 'ARPU (₹)', value => `₹${value}`)
         });
         break;
       }
@@ -195,64 +200,136 @@ export class AnalyticsPanelComponent implements OnInit, OnDestroy {
           type: 'doughnut',
           data: {
             labels: ['Retained', 'Terminated', 'Ported Out'],
-            datasets: [{ data: [retained, d.terminatedAccounts, d.portedOutLines], backgroundColor: ['#10b981', '#ef4444', '#f59e0b'] }]
+            datasets: [{ data: [retained, d.terminatedAccounts, d.portedOutLines], backgroundColor: ['#10b981', '#ef4444', '#f59e0b'], borderWidth: 0 }]
           },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '55%',
+            plugins: { legend: { position: 'bottom' } }
+          }
         });
         break;
       }
-      case 'network':
+      case 'network': {
+        const networkData = [d.avgDataPerSubscriberMb, d.avgVoicePerSubscriberMin];
         this.charts[key] = new Chart(canvas, {
           type: 'bar',
           data: {
             labels: ['Avg Data (MB)', 'Avg Voice (min)'],
-            datasets: [{ label: 'Per subscriber', data: [d.avgDataPerSubscriberMb, d.avgVoicePerSubscriberMin], backgroundColor: [palette[0], palette[2]] }]
+            datasets: [
+              { label: 'Avg Data (MB)', data: [d.avgDataPerSubscriberMb, 0], backgroundColor: palette[0], yAxisID: 'left', ...barStyle },
+              { label: 'Avg Voice (min)', data: [0, d.avgVoicePerSubscriberMin], backgroundColor: palette[2], yAxisID: 'right', ...barStyle }
+            ]
           },
-          options: this.baseOpts()
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+              x: { grid: { display: false } },
+              left: {
+                type: 'linear',
+                position: 'left',
+                title: { display: true, text: 'Avg Data (MB)' },
+                ticks: { color: '#475569' }
+              },
+              right: {
+                type: 'linear',
+                position: 'right',
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: 'Avg Voice (min)' },
+                ticks: { color: '#475569' }
+              }
+            }
+          }
         });
         break;
+      }
       case 'sla': {
         const stats = d.statsByPriority ?? {};
         const labels = Object.keys(stats);
+        const dataValues = labels.map(l => stats[l].complianceRate);
         this.charts[key] = new Chart(canvas, {
           type: 'bar',
           data: {
             labels,
-            datasets: [{ label: 'Compliance %', data: labels.map(l => stats[l].complianceRate), backgroundColor: palette }]
+            datasets: [{ label: 'Compliance %', data: dataValues, backgroundColor: palette, ...barStyle }]
           },
-          options: this.baseOpts(100)
+          options: this.baseOpts(100, 'Priority', 'Compliance %', value => `${value}%`)
         });
         break;
       }
-      case 'collection':
+      case 'collection': {
+        const collectionValues = [d.overdueAmount0to30, d.overdueAmount31to60, d.overdueAmount60plus];
         this.charts[key] = new Chart(canvas, {
           type: 'bar',
           data: {
             labels: ['0–30 days', '31–60 days', '60+ days'],
-            datasets: [{ label: 'Overdue amount (₹)', data: [d.overdueAmount0To30, d.overdueAmount31To60, d.overdueAmount60Plus], backgroundColor: ['#f59e0b', '#f97316', '#ef4444'] }]
+            datasets: [{ label: 'Overdue amount (₹)', data: collectionValues, backgroundColor: ['#f59e0b', '#f97316', '#ef4444'], ...barStyle }]
           },
-          options: this.baseOpts()
+          options: this.baseOpts(suggestedMax(collectionValues), 'Aging bucket', 'Overdue amount (₹)', value => `₹${value}`)
         });
         break;
-      case 'growth':
+      }
+      case 'growth': {
+        const growthValues = [d.prepaidAdds ?? 0, d.postpaidAdds ?? 0];
         this.charts[key] = new Chart(canvas, {
-          type: 'bar',
+          type: 'line',
           data: {
-            labels: ['Prepaid', 'Postpaid', 'Enterprise'],
-            datasets: [{ label: 'New adds', data: [d.prepaidAdds, d.postpaidAdds, d.enterpriseAdds], backgroundColor: palette.slice(0, 3) }]
+            labels: ['Prepaid', 'Postpaid'],
+            datasets: [{
+              label: 'New adds',
+              data: growthValues,
+              borderColor: palette[0],
+              backgroundColor: 'rgba(14,165,233,0.18)',
+              fill: true,
+              tension: 0.35,
+              pointRadius: 6,
+              pointBackgroundColor: palette[0],
+              pointBorderColor: '#ffffff',
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 2
+            }]
           },
-          options: this.baseOpts()
+          options: this.baseOpts(suggestedMax(growthValues), 'Segment', 'New adds', value => String(value))
         });
         break;
+      }
     }
   }
 
-  private baseOpts(max?: number): any {
+  private baseOpts(max?: number, xLabel = 'Category', yLabel = 'Value', formatValue?: (value: any) => string): any {
     return {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: true, position: 'bottom' } },
-      scales: { y: { beginAtZero: true, ...(max ? { max } : {}) } }
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 12, boxHeight: 12 } },
+        tooltip: {
+          callbacks: {
+            label: (context: any) => {
+              const label = context.dataset.label ? `${context.dataset.label}: ` : '';
+              const value = context.parsed?.y ?? context.parsed ?? context.raw;
+              return `${label}${formatValue ? formatValue(value) : value}`;
+            }
+          }
+        }
+      },
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { display: false },
+          title: { display: true, text: xLabel, color: '#475569', font: { size: 12, weight: '600' } },
+          ticks: { color: '#475569' }
+        },
+        y: {
+          beginAtZero: true,
+          ...(max ? { suggestedMax: max } : {}),
+          grid: { color: 'rgba(148, 163, 184, 0.16)' },
+          title: { display: true, text: yLabel, color: '#475569', font: { size: 12, weight: '600' } },
+          ticks: { color: '#475569' }
+        }
+      }
     };
   }
 }
