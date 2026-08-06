@@ -96,6 +96,7 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   invoicePage = 1;
   readonly invoicePageSize = 8;
   lastSync = '14:32 UTC';
+  activeInvoiceActionDropdownId: string | null = null;
 
   // Shared page size for the paginated tables (keeps content on one screen).
   readonly pageSize = 8;
@@ -113,6 +114,7 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   disputes: Dispute[] = [];
   disputeFilter = 'All';
   readonly disputeFilters = ['All', 'Under Review', 'Escalated', 'Pending Info', 'Resolved'];
+  isDisputeFilterDropdownOpen = false;
   openKebabId: string | null = null;
   activeDispute: Dispute | null = null;
   resolutionForm!: FormGroup;
@@ -357,11 +359,31 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   onDocumentClick(): void {
     this.isNotificationOpen.set(false);
     this.isProfileDropdownOpen = false;
+    this.activeInvoiceActionDropdownId = null;
+    this.isDisputeFilterDropdownOpen = false;
   }
 
   toggleProfileDropdown(event: Event): void {
     event.stopPropagation();
     this.isProfileDropdownOpen = !this.isProfileDropdownOpen;
+  }
+
+  toggleInvoiceActionDropdown(invoiceId: string, event: Event): void {
+    event.stopPropagation();
+    this.activeInvoiceActionDropdownId = this.activeInvoiceActionDropdownId === invoiceId ? null : invoiceId;
+  }
+
+  closeInvoiceActionDropdown(): void {
+    this.activeInvoiceActionDropdownId = null;
+  }
+
+  toggleDisputeFilterDropdown(event: Event): void {
+    event.stopPropagation();
+    this.isDisputeFilterDropdownOpen = !this.isDisputeFilterDropdownOpen;
+  }
+
+  closeDisputeFilterDropdown(): void {
+    this.isDisputeFilterDropdownOpen = false;
   }
 
   openMyAccount(): void {
@@ -857,14 +879,42 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   private renderCharts(): void {
     const billingCtx = document.getElementById('billingChart') as HTMLCanvasElement | null;
     if (billingCtx) {
+      const billedByCycle = new Map<string, number>();
+      for (const inv of this.invoices) {
+        const cycle = inv.cycle ?? this.billingPeriod;
+        billedByCycle.set(cycle, (billedByCycle.get(cycle) ?? 0) + Number(inv.amount ?? 0));
+      }
+
+      const collectedByCycle = new Map<string, number>();
+      for (const p of this.payments) {
+        let cycle = this.billingPeriod;
+        const m = /INV-(\d+)/.exec(p.invoiceRef ?? '');
+        if (m) {
+          const id = Number(m[1]);
+          const matched = this.invoices.find(i => i.rawId === id);
+          if (matched) cycle = matched.cycle ?? cycle;
+        } else if (p.date) {
+          const d = new Date(p.date);
+          if (!isNaN(d.getTime())) cycle = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+        }
+        collectedByCycle.set(cycle, (collectedByCycle.get(cycle) ?? 0) + Number(p.amount ?? 0));
+      }
+
+      const allCycles = Array.from(new Set<string>([...billedByCycle.keys(), ...collectedByCycle.keys()]));
+      const parseCycle = (c: string) => {
+        const d = new Date('1 ' + c);
+        return isNaN(d.getTime()) ? new Date() : d;
+      };
+      allCycles.sort((a, b) => parseCycle(a).getTime() - parseCycle(b).getTime());
+
       this.billingChart?.destroy();
       this.billingChart = new Chart(billingCtx, {
         type: 'bar',
         data: {
-          labels: [],
+          labels: allCycles,
           datasets: [
-            { label: 'Billed',    data: [], backgroundColor: '#bfdbfe', borderRadius: 6, borderWidth: 0 },
-            { label: 'Collected', data: [], backgroundColor: '#bbf7d0', borderRadius: 6, borderWidth: 0 }
+            { label: 'Billed',    data: allCycles.map(c => billedByCycle.get(c) ?? 0), backgroundColor: '#bfdbfe', borderRadius: 6, borderWidth: 0 },
+            { label: 'Collected', data: allCycles.map(c => collectedByCycle.get(c) ?? 0), backgroundColor: '#bbf7d0', borderRadius: 6, borderWidth: 0 }
           ]
         },
         options: {
@@ -881,12 +931,24 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
 
     const trendCtx = document.getElementById('disputeTrendChart') as HTMLCanvasElement | null;
     if (trendCtx) {
+      const disputesByCycle = new Map<string, number>();
+      for (const d of this.disputes) {
+        let cycle = this.billingPeriod;
+        const invNum = this.parseInvoiceNumber(d.invoice ?? '');
+        if (invNum != null) {
+          const matched = this.invoices.find(i => i.rawId === invNum);
+          if (matched) cycle = matched.cycle ?? cycle;
+        }
+        disputesByCycle.set(cycle, (disputesByCycle.get(cycle) ?? 0) + 1);
+      }
+
+      const labels = Array.from(disputesByCycle.keys()).sort((a, b) => new Date('1 ' + a).getTime() - new Date('1 ' + b).getTime());
       this.disputeTrendChart?.destroy();
       this.disputeTrendChart = new Chart(trendCtx, {
         type: 'bar',
         data: {
-          labels: [],
-          datasets: [{ label: 'Disputes opened', data: [], backgroundColor: '#fed7aa', borderRadius: 6, borderWidth: 0 }]
+          labels,
+          datasets: [{ label: 'Disputes opened', data: labels.map(l => disputesByCycle.get(l) ?? 0), backgroundColor: '#fed7aa', borderRadius: 6, borderWidth: 0 }]
         },
         options: {
           responsive: true,
