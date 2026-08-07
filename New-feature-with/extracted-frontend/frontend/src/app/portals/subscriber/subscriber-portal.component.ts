@@ -898,7 +898,7 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
         this.toastService.success('Payment successful! Thank you.');
         this.loadInvoices();
       },
-      error: () => this.toastService.error('Invoice payment failed.')
+      error: (err: any) => this.toastService.error(err?.error?.message ?? 'Invoice payment failed.')
     });
   }
 

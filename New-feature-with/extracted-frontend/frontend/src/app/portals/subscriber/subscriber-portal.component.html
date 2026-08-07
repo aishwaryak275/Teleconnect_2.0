@@ -688,11 +688,11 @@
                   <td class="px-6 py-4 text-right" (click)="$event.stopPropagation()">
                     <button
                       (click)="payInvoice(inv)"
-                      [disabled]="isInvoicePaid(inv)"
-                      [title]="isInvoicePaid(inv) ? 'This invoice is already paid' : 'Pay this invoice'"
+                      [disabled]="isInvoicePaid(inv) || isInvoiceDisputed(inv)"
+                      [title]="isInvoicePaid(inv) ? 'This invoice is already paid' : (isInvoiceDisputed(inv) ? 'Under dispute — the dispute must be resolved before you can pay' : 'Pay this invoice')"
                       class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg shadow-sm transition mr-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-500"
                     >
-                      {{ isInvoicePaid(inv) ? 'Paid' : 'Pay Now' }}
+                      {{ isInvoicePaid(inv) ? 'Paid' : (isInvoiceDisputed(inv) ? 'Under Dispute' : 'Pay Now') }}
                     </button>
                     <button
                       *ngIf="!isInvoicePaid(inv) && !isInvoiceDisputed(inv)"

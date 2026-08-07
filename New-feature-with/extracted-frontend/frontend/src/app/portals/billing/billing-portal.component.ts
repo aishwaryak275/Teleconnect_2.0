@@ -42,6 +42,7 @@ interface Payment {
 
 interface Dispute {
   disputeId: string;
+  rawId?: number;
   accountId: string;
   customer: string;
   invoice: string;
@@ -261,6 +262,7 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
       const matched = invoiceId != null ? this.invoices.find(i => i.rawId === invoiceId) : undefined;
       return {
         disputeId: d.disputeId != null ? `DSP-${d.disputeId}` : '—',
+        rawId: d.disputeId != null ? Number(d.disputeId) : undefined,
         accountId: matched?.accountId ?? '—',
         customer: d.customerName ?? matched?.customer ?? '—',
         invoice: invoiceId != null ? `INV-${invoiceId}` : '—',
@@ -713,11 +715,33 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
       this.resolutionForm.markAllAsTouched();
       return;
     }
-    const { status } = this.resolutionForm.value;
-    const target = this.disputes.find(d => d.disputeId === this.activeDispute!.disputeId);
+    const { status, remarks } = this.resolutionForm.value;
+    const dispute = this.activeDispute;
+    const target = this.disputes.find(d => d.disputeId === dispute.disputeId);
+
+    // A final "Resolved" decision must be persisted to the backend: resolveDispute()
+    // closes the dispute AND restores the invoice to SENT/OVERDUE, which is what makes
+    // it payable again. Without this call the invoice stays DISPUTED and the subscriber
+    // can never pay it.
+    if (status === 'Resolved' && dispute.rawId != null) {
+      this.billingService.resolveDispute(dispute.rawId, 'Resolved', remarks).subscribe({
+        next: () => {
+          if (target) target.status = status;
+          this.iamService.recordAudit('DISPUTE_RESOLVED', 'BILLING');
+          this.toastService.success('Dispute ' + dispute.disputeId + ' resolved — the invoice is now payable.');
+          this.activeDispute = null;
+        },
+        error: (err: any) =>
+          this.toastService.error('Failed to resolve dispute: ' + (err?.error?.message ?? `HTTP ${err?.status}`))
+      });
+      return;
+    }
+
+    // Intermediate transitions (Under Review / Escalated / Pending Info) stay UI-only —
+    // the invoice remains under dispute until a final "Resolved" decision is made.
     if (target) target.status = status;
     this.iamService.recordAudit('DISPUTE_' + String(status).toUpperCase().replace(' ', '_'), 'BILLING');
-    this.toastService.success('Dispute ' + this.activeDispute.disputeId + ' updated to "' + status + '".');
+    this.toastService.success('Dispute ' + dispute.disputeId + ' updated to "' + status + '".');
     this.activeDispute = null;
   }
 
