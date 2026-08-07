@@ -760,19 +760,19 @@
           <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Name</label>
-              <input [(ngModel)]="searchName" placeholder="Search by name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
+              <input [(ngModel)]="searchName" (ngModelChange)="onUserFilterChange()" placeholder="Search by name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
             </div>
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
-              <input [(ngModel)]="searchEmail" placeholder="Search by email" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
+              <input [(ngModel)]="searchEmail" (ngModelChange)="onUserFilterChange()" placeholder="Search by email" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
             </div>
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone</label>
-              <input [(ngModel)]="searchPhone" placeholder="Search by phone" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
+              <input [(ngModel)]="searchPhone" (ngModelChange)="onUserFilterChange()" placeholder="Search by phone" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
             </div>
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Role</label>
-              <select [(ngModel)]="searchRole" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400">
+              <select [(ngModel)]="searchRole" (ngModelChange)="onUserFilterChange()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400">
                 <option value="">All Roles</option>
                 <option value="A">Admin</option>
                 <option value="CS">Customer Service Agent</option>
@@ -784,7 +784,7 @@
             </div>
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Status</label>
-              <select [(ngModel)]="searchStatus" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400">
+              <select [(ngModel)]="searchStatus" (ngModelChange)="onUserFilterChange()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400">
                 <option value="">All Statuses</option>
                 <option value="A">Active</option>
                 <option value="S">Suspended</option>
@@ -792,16 +792,12 @@
               </select>
             </div>
           </div>
-          <div class="flex gap-3 mt-4">
-            <button (click)="searchUsers()" class="px-5 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-xl cursor-pointer transition">Search</button>
-            <button (click)="clearUserSearch()" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer transition">Clear</button>
-          </div>
         </div>
 
         <!-- User Table -->
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-            <h4 class="font-bold text-slate-700 text-sm">All Users <span class="text-slate-400 font-normal">({{ iamUsers.length }} total)</span></h4>
+            <h4 class="font-bold text-slate-700 text-sm">All Users <span class="text-slate-400 font-normal">({{ filteredUsers.length }} total)</span></h4>
             <button
               (click)="openRegisterModal()"
               class="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-xl shadow-md shadow-sky-500/20 transition cursor-pointer"
@@ -854,7 +850,7 @@
                     </button>
                   </td>
                 </tr>
-                <tr *ngIf="iamUsers.length === 0">
+                <tr *ngIf="filteredUsers.length === 0">
                   <td colspan="7" class="px-6 py-12 text-center text-slate-400 text-sm">No users found.</td>
                 </tr>
               </tbody>
@@ -866,7 +862,7 @@
               class="px-4 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 disabled:opacity-40 cursor-pointer transition">
               ← Previous
             </button>
-            <span class="text-xs text-slate-500">Page {{ userPage + 1 }} of {{ userTotalPages }} &nbsp;·&nbsp; {{ iamUsers.length }} users total</span>
+            <span class="text-xs text-slate-500">Page {{ userPage + 1 }} of {{ userTotalPages }} &nbsp;·&nbsp; {{ filteredUsers.length }} users total</span>
             <button (click)="userNextPage()" [disabled]="userPage >= userTotalPages - 1"
               class="px-4 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 disabled:opacity-40 cursor-pointer transition">
               Next →

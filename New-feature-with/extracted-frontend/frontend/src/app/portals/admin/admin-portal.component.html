@@ -337,7 +337,7 @@
       <!-- ========================================== -->
       <div *ngIf="activeTab() === 'users'" [@fadeInUp] class="flex flex-col gap-5">
 
-        <!-- Sub-tab navigation -->
+        <!-- Sub-tab navigation + Register -->
         <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-2xl p-2 shadow-sm w-fit">
           <button (click)="setUserManagerTab('directory')"
             [class.bg-sky-500]="userManagerTab() === 'directory'" [class.text-white]="userManagerTab() === 'directory'"
@@ -360,17 +360,14 @@
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
             Roles &amp; Permissions
           </button>
+          <button *ngIf="userManagerTab() === 'directory'" (click)="openRegisterModal()" class="flex items-center gap-2 px-4 py-2 ml-1 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl shadow-md shadow-sky-500/20 transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+            Register
+          </button>
         </div>
 
         <!-- ── User Directory ── -->
         <ng-container *ngIf="userManagerTab() === 'directory'">
-          <!-- Register (top-right, above Filter Search) -->
-          <div class="flex justify-end mb-3">
-            <button (click)="openRegisterModal()" class="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-xl shadow-md shadow-sky-500/20 transition cursor-pointer">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-              Register
-            </button>
-          </div>
           <!-- Filter Search -->
           <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
             <h4 class="font-bold text-slate-700 text-sm mb-4">Filter Search</h4>
@@ -468,10 +465,10 @@
                         <!-- Action Dropdown Menu -->
                         <div *ngIf="activeActionDropdownId === u.userId"
                           (click)="$event.stopPropagation()"
-                          [class.mt-1]="i < cnt - 2"
-                          [class.top-full]="i < cnt - 2"
-                          [class.bottom-full]="i >= cnt - 2"
-                          [class.mb-1]="i >= cnt - 2"
+                          [class.mt-1]="!(i >= cnt - 2 && i >= 2)"
+                          [class.top-full]="!(i >= cnt - 2 && i >= 2)"
+                          [class.bottom-full]="i >= cnt - 2 && i >= 2"
+                          [class.mb-1]="i >= cnt - 2 && i >= 2"
                           class="absolute right-0 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 text-xs text-slate-700 animate-in fade-in duration-100">
                           
                           <!-- Activate -->

@@ -774,6 +774,11 @@ export class SubscriberPortalComponent implements OnInit, AfterViewInit, OnDestr
         );
         const accountId: number = this.account360?.accountId;
         if (accountId) {
+          // Activation already generates the invoice below. Mark the self-heal path as done
+          // BEFORE loadData() runs — otherwise loadData → loadInvoices → maybeHealInvoice races
+          // against this (still-async) generate call, sees myInvoices.length === 0, and creates
+          // a SECOND invoice on a fresh cycle (duplicate bill with identical amount/due date).
+          this.healedInvoice = true;
           this.autoCreateInvoice(accountId, lineId, this.targetPlan, planPrice, taxes, activationDate, expiryDate);
         }
         this.closeUpgradeModal();

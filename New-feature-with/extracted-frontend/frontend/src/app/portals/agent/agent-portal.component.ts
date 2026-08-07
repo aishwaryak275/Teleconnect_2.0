@@ -292,34 +292,32 @@ export class AgentPortalComponent implements OnInit {
     });
   }
 
-  searchUsers(): void {
+  // Reactive client-side filtering (mirrors the admin User Manager)
+  onUserFilterChange(): void {
     this.userPage = 0;
-    this.iamService.searchUsers({
-      name: this.searchName || undefined,
-      email: this.searchEmail || undefined,
-      phone: this.searchPhone || undefined,
-      role: this.searchRole || undefined,
-      status: this.searchStatus || undefined
-    }).subscribe({
-      next: (users) => { this.iamUsers = users; this.enrichUsersWithAccountStatus(); },
-      error: () => this.toastService.error('User search failed.')
-    });
   }
 
-  clearUserSearch(): void {
-    this.searchName = ''; this.searchEmail = ''; this.searchPhone = '';
-    this.searchRole = ''; this.searchStatus = '';
-    this.userPage = 0;
-    this.loadIamUsers();
+  get filteredUsers(): any[] {
+    const name = this.searchName.trim().toLowerCase();
+    const email = this.searchEmail.trim().toLowerCase();
+    const phone = this.searchPhone.trim().toLowerCase();
+    return this.iamUsers.filter((u: any) => {
+      if (name && !String(u.name ?? '').toLowerCase().includes(name)) return false;
+      if (email && !String(u.email ?? '').toLowerCase().includes(email)) return false;
+      if (phone && !String(u.phone ?? '').toLowerCase().includes(phone)) return false;
+      if (this.searchRole && this.getRoleLabel(u.roleName) !== this.getRoleLabel(this.searchRole)) return false;
+      if (this.searchStatus && this.getStatusLabel(u.status) !== this.getStatusLabel(this.searchStatus)) return false;
+      return true;
+    });
   }
 
   get paginatedUsers(): any[] {
     const start = this.userPage * this.userPageSize;
-    return this.iamUsers.slice(start, start + this.userPageSize);
+    return this.filteredUsers.slice(start, start + this.userPageSize);
   }
 
   get userTotalPages(): number {
-    return Math.ceil(this.iamUsers.length / this.userPageSize);
+    return Math.ceil(this.filteredUsers.length / this.userPageSize);
   }
 
   userNextPage(): void { if (this.userPage < this.userTotalPages - 1) this.userPage++; }
