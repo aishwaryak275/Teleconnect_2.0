@@ -121,11 +121,12 @@ export class AdminPortalComponent implements OnInit {
   }
 
   // ── Audit Logs ────────────────────────────────────────────────────────────────
-  auditLogs: any[] = [];
+  // Full set is loaded once; filtering, sorting and paging are done client-side so
+  // the search is reactive (no Filter button) and the timestamp sort spans all logs.
+  allAuditLogs: any[] = [];
   auditPage = 0;
   auditSize = 10;
-  auditTotalPages = 0;
-  auditTotalElements = 0;
+  auditSortDir: 'asc' | 'desc' = 'desc';
   filterAuditUser: number | null = null;
   filterAuditModule = '';
   filterAuditAction = '';
@@ -501,6 +502,23 @@ export class AdminPortalComponent implements OnInit {
     this.loadIamUsers();
   }
 
+  /** Reactive, client-side filter over the loaded users — no Search button. */
+  get filteredUsers(): any[] {
+    const n = (this.searchName || '').trim().toLowerCase();
+    const e = (this.searchEmail || '').trim().toLowerCase();
+    const p = (this.searchPhone || '').trim().toLowerCase();
+    return this.iamUsers.filter(u =>
+      (!n || String(u.name ?? '').toLowerCase().includes(n)) &&
+      (!e || String(u.email ?? '').toLowerCase().includes(e)) &&
+      (!p || String(u.phone ?? '').toLowerCase().includes(p)) &&
+      (!this.searchRole || u.roleName === this.searchRole) &&
+      (!this.searchStatus || u.status === this.searchStatus)
+    );
+  }
+
+  /** Called on every filter change — reactive search, resets to page 1. */
+  onUserFilterChange(): void { this.usersPage = 1; }
+
   get paginatedUsers(): any[] {
     const start = this.userPage * this.userPageSize;
     return this.iamUsers.slice(start, start + this.userPageSize);
@@ -640,67 +658,73 @@ export class AdminPortalComponent implements OnInit {
 
   // ── Audit Logs ────────────────────────────────────────────────────────────────
   loadAuditLogs(): void {
-    const params = {
-      module: this.filterAuditModule || undefined,
-      action: this.filterAuditAction || undefined,
-      page: this.auditPage,
-      size: this.auditSize
-    };
-    const obs$ = this.filterAuditUser
-      ? this.iamService.getAuditLogsByUser(this.filterAuditUser, params)
-      : this.iamService.getAuditLogs(params);
-    obs$.subscribe({
+    // Fetch the full set once; filter/sort/paginate happen client-side.
+    this.iamService.getAuditLogs({ page: 0, size: 100000 }).subscribe({
       next: (data: any) => {
-        this.auditLogs = Array.isArray(data) ? data : (data?.content ?? []);
-        this.auditTotalPages = data?.totalPages ?? 1;
-        this.auditTotalElements = data?.totalElements ?? this.auditLogs.length;
+        this.allAuditLogs = Array.isArray(data) ? data : (data?.content ?? []);
+        this.auditPage = 0;
       },
       error: () => this.toastService.error('Failed to load audit logs.')
     });
   }
 
-  applyAuditFilters(): void { this.auditPage = 0; this.loadAuditLogs(); }
+  /** Reactive filter + timestamp sort applied to the full log set. */
+  get filteredAuditLogs(): any[] {
+    const uid = this.filterAuditUser;
+    const mod = (this.filterAuditModule || '').toLowerCase();
+    const act = (this.filterAuditAction || '').trim().toLowerCase();
+    const list = this.allAuditLogs.filter(l =>
+      (uid == null || String(l.userId) === String(uid)) &&
+      (!mod || String(l.module || '').toLowerCase() === mod) &&
+      (!act || String(l.action || '').toLowerCase().includes(act))
+    );
+    return list.sort((a, b) => {
+      const ta = new Date(a.timestamp).getTime();
+      const tb = new Date(b.timestamp).getTime();
+      return this.auditSortDir === 'asc' ? ta - tb : tb - ta;
+    });
+  }
+
+  get auditTotalElements(): number { return this.filteredAuditLogs.length; }
+  get auditTotalPages(): number { return Math.max(1, Math.ceil(this.auditTotalElements / this.auditSize)); }
+  get pagedAuditLogs(): any[] {
+    const start = this.auditPage * this.auditSize;
+    return this.filteredAuditLogs.slice(start, start + this.auditSize);
+  }
+
+  /** Called on every filter change — reactive, no Filter button. */
+  onAuditFilterChange(): void { this.auditPage = 0; }
+
+  /** Timestamp column sort direction. */
+  setAuditSort(dir: 'asc' | 'desc'): void { this.auditSortDir = dir; this.auditPage = 0; }
 
   resetAuditFilters(): void {
     this.filterAuditUser = null; this.filterAuditModule = ''; this.filterAuditAction = '';
-    this.auditPage = 0; this.loadAuditLogs();
+    this.auditPage = 0;
   }
 
-  auditNextPage(): void { if (this.auditPage < this.auditTotalPages - 1) { this.auditPage++; this.loadAuditLogs(); } }
-  auditPrevPage(): void { if (this.auditPage > 0) { this.auditPage--; this.loadAuditLogs(); } }
+  auditNextPage(): void { if (this.auditPage < this.auditTotalPages - 1) { this.auditPage++; } }
+  auditPrevPage(): void { if (this.auditPage > 0) { this.auditPage--; } }
 
   exportAuditLogs(): void {
-    const params = {
-      module: this.filterAuditModule || undefined,
-      action: this.filterAuditAction || undefined,
-      page: 0,
-      size: 99999
-    };
-    const obs$ = this.filterAuditUser
-      ? this.iamService.getAuditLogsByUser(this.filterAuditUser, params)
-      : this.iamService.getAuditLogs(params);
-    obs$.subscribe({
-      next: (data: any) => {
-        const logs: any[] = Array.isArray(data) ? data : (data?.content ?? []);
-        const headers = ['Action', 'User Name', 'Module', 'IP Address', 'Timestamp'];
-        const rows = logs.map(log => [
-          log.action ?? '',
-          this.getUserName(log.userId),
-          log.module ?? '',
-          log.ipAddress ?? '',
-          log.timestamp ? new Date(log.timestamp).toLocaleString() : ''
-        ]);
-        const csv = [headers, ...rows]
-          .map(r => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(','))
-          .join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'audit_logs.csv'; a.click();
-        URL.revokeObjectURL(url);
-      },
-      error: () => this.toastService.error('Failed to export audit logs.')
-    });
+    // Export the current filtered + sorted view (client-side).
+    const logs = this.filteredAuditLogs;
+    const headers = ['Action', 'User Name', 'Module', 'IP Address', 'Timestamp'];
+    const rows = logs.map(log => [
+      log.action ?? '',
+      log.userName ?? this.getUserName(log.userId),
+      log.module ?? '',
+      log.ipAddress ?? '',
+      log.timestamp ? new Date(log.timestamp).toLocaleString() : ''
+    ]);
+    const csv = [headers, ...rows]
+      .map(r => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'audit_logs.csv'; a.click();
+    URL.revokeObjectURL(url);
   }
 
   getUserName(userId: number | null): string {
