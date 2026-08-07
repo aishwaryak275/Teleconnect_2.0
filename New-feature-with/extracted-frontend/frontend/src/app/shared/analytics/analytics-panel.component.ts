@@ -273,26 +273,62 @@ export class AnalyticsPanelComponent implements OnInit, OnDestroy {
         break;
       }
       case 'growth': {
-        const growthValues = [d.prepaidAdds ?? 0, d.postpaidAdds ?? 0];
+        const metrics = [
+          { label: 'Gross Adds', value: d.grossAdds ?? 0, color: '#10b981', borderColor: '#059669' },
+          { label: 'Terminations', value: d.terminations ?? 0, color: '#ef4444', borderColor: '#dc2626' },
+          { label: 'Net Adds', value: d.netAdds ?? 0, color: '#0ea5e9', borderColor: '#0284c7' },
+          { label: 'SIM Activations', value: d.activeSIMActivations ?? 0, color: '#6366f1', borderColor: '#4f46e5' }
+        ];
+        const allValues = metrics.map(m => m.value);
+        const min = Math.min(0, ...allValues);
+        const max = Math.max(...allValues);
         this.charts[key] = new Chart(canvas, {
-          type: 'line',
+          type: 'radar',
           data: {
-            labels: ['Prepaid', 'Postpaid'],
+            labels: metrics.map(m => m.label),
             datasets: [{
-              label: 'New adds',
-              data: growthValues,
-              borderColor: palette[0],
-              backgroundColor: 'rgba(14,165,233,0.18)',
+              label: 'Subscriber Growth Metrics',
+              data: allValues,
+              borderColor: '#6366f1',
+              borderWidth: 3,
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
               fill: true,
-              tension: 0.35,
+              pointBackgroundColor: metrics.map(m => m.borderColor),
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
               pointRadius: 6,
-              pointBackgroundColor: palette[0],
-              pointBorderColor: '#ffffff',
-              pointHoverRadius: 8,
-              pointHoverBorderWidth: 2
+              pointHoverRadius: 8
             }]
           },
-          options: this.baseOpts(suggestedMax(growthValues), 'Segment', 'New adds', value => String(value))
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 12, boxHeight: 12, padding: 20, font: { size: 13 } } },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                padding: 12,
+                titleFont: { size: 14, weight: 'bold' },
+                bodyFont: { size: 13 },
+                borderColor: '#6366f1',
+                borderWidth: 1,
+                callbacks: {
+                  label: (context: any) => `${context.label}: ${context.parsed.r}`
+                }
+              }
+            },
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+              r: {
+                beginAtZero: true,
+                suggestedMin: min < 0 ? Math.floor(min * 1.15) : 0,
+                suggestedMax: max > 0 ? Math.ceil(max * 1.15) : 1,
+                grid: { color: 'rgba(148, 163, 184, 0.2)', circular: true },
+                ticks: { color: '#64748b', font: { size: 12 }, backdropColor: 'rgba(255, 255, 255, 0.8)' },
+                pointLabels: { color: '#1e293b', font: { size: 13, weight: 'bold' } }
+              }
+            }
+          }
         });
         break;
       }

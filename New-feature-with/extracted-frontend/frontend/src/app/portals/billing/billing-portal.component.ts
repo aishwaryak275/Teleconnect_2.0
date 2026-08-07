@@ -816,20 +816,65 @@ export class BillingPortalComponent implements OnInit, OnDestroy {
   // ============================================================================
   // REPORTS
   // ============================================================================
-  // TODO: wire to a real backend endpoint (e.g. reportService.getBillingKpis()).
-  // Kept as a stable object (not a getter) so change detection doesn't allocate
-  // a new object every cycle next to the responsive Reports charts (that
-  // previously caused a resize→CD→reflow freeze).
-  readonly reportKpis = {
-    totalBilled: 0,
-    collected: 0,
-    collectionRate: 0,
-    outstanding: 0,
-    pendingPct: 0,
-    disputeRate: 0,
-    disputeRateDelta: 0,
-    avgInvoice: 0
-  };
+  private getCurrentBillingCycleInvoices(): Invoice[] {
+    const cycle = this.billingPeriod?.trim();
+    const current = this.invoices.filter(inv => (inv.cycle ?? '').trim() === cycle);
+    return current.length ? current : this.invoices;
+  }
+
+  private getCurrentBillingCyclePayments(): Payment[] {
+    const cycle = this.billingPeriod?.trim();
+    const invoiceById = new Map(this.invoices.map(inv => [inv.invoiceId, inv] as const));
+    const current = this.payments.filter(p => {
+      const matched = invoiceById.get(p.invoiceRef);
+      if (matched && (matched.cycle ?? '').trim() === cycle) return true;
+      if (!p.date) return false;
+      const d = new Date(p.date);
+      if (isNaN(d.getTime())) return false;
+      return d.toLocaleString('en-US', { month: 'short', year: 'numeric' }) === cycle;
+    });
+    return current.length ? current : this.payments;
+  }
+
+  private getCurrentBillingCycleDisputes(): Dispute[] {
+    const cycle = this.billingPeriod?.trim();
+    const invoiceById = new Map(this.invoices.map(inv => [inv.invoiceId, inv] as const));
+    const current = this.disputes.filter(d => {
+      const invNum = this.parseInvoiceNumber(d.invoice ?? '');
+      if (invNum != null) {
+        const matched = invoiceById.get(`INV-${invNum}`);
+        if (matched && (matched.cycle ?? '').trim() === cycle) return true;
+      }
+      return false;
+    });
+    return current.length ? current : this.disputes;
+  }
+
+  get reportKpis() {
+    const invoices = this.getCurrentBillingCycleInvoices();
+    const payments = this.getCurrentBillingCyclePayments();
+    const disputes = this.getCurrentBillingCycleDisputes();
+
+    const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.amount ?? 0), 0);
+    const collected = payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+    const outstanding = Math.max(0, totalBilled - collected);
+    const collectionRate = totalBilled > 0 ? Math.round((collected / totalBilled) * 100) : 0;
+    const pendingPct = totalBilled > 0 ? Math.round((outstanding / totalBilled) * 100) : 0;
+    const disputedCount = invoices.filter(inv => inv.status === 'Disputed').length;
+    const disputeRate = invoices.length > 0 ? Math.round((disputedCount / invoices.length) * 100) : 0;
+    const avgInvoice = invoices.length > 0 ? Math.round(totalBilled / invoices.length) : 0;
+
+    return {
+      totalBilled,
+      collected,
+      collectionRate,
+      outstanding,
+      pendingPct,
+      disputeRate,
+      disputeRateDelta: 0,
+      avgInvoice
+    };
+  }
 
   invoiceStatusBreakdown: any[] = [];
 
