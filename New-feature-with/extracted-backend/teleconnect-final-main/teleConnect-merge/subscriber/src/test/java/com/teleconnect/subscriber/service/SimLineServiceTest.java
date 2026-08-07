@@ -38,7 +38,10 @@ class SimLineServiceTest {
         request.setIccid("ICCID-0001");
         request.setServiceType("VoiceData");
 
-        when(accountRepo.findById(1)).thenReturn(Optional.of(new com.teleconnect.subscriber.entity.SubscriberAccount()));
+        com.teleconnect.subscriber.entity.SubscriberAccount account =
+                new com.teleconnect.subscriber.entity.SubscriberAccount();
+        account.setKycStatus(com.teleconnect.subscriber.entity.SubscriberAccount.KycStatus.Verified);
+        when(accountRepo.findById(1)).thenReturn(Optional.of(account));
         when(simLineRepo.existsByMsisdn("1234567890")).thenReturn(false);
         when(simLineRepo.existsByIccid("ICCID-0001")).thenReturn(false);
 

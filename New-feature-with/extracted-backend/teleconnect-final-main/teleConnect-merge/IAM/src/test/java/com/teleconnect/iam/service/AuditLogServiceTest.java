@@ -3,6 +3,7 @@ package com.teleconnect.iam.service;
 import com.teleconnect.iam.dto.request.AuditLogFilterDTO;
 import com.teleconnect.iam.entity.AuditLog;
 import com.teleconnect.iam.repository.AuditLogRepository;
+import com.teleconnect.iam.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,6 +22,9 @@ class AuditLogServiceTest {
 
     @Mock
     private AuditLogRepository repository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private AuditLogService service;
